@@ -4,26 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 /* eslint-disable no-console */
 import "source-map-support/register";
-import { EventEmitter } from "events";
-import { resolve as currentDirectory } from "path";
+import { join, resolve as currentDirectory } from "path";
 import {
   configureLibrariesLogger,
   color,
   ConsoleLogger,
   FilterLogger,
-  AutorestLogger,
   AutorestSyncLogger,
   Exception,
+  IAutorestLogger,
+  AutorestLogger,
 } from "@autorest/common";
-
-import { AutorestCliArgs, parseAutorestCliArgs } from "@autorest/configuration";
-EventEmitter.defaultMaxListeners = 100;
-process.env["ELECTRON_RUN_AS_NODE"] = "1";
-delete process.env["ELECTRON_NO_ATTACH_CONSOLE"];
-
-// start of autorest-ng
-// the console app starts for real here.
-
+import { AutorestCliArgs, parseAutorestCliArgs, getLogLevel } from "@autorest/configuration";
 import { EnhancedFileSystem, RealFileSystem } from "@azure-tools/datastore";
 import {
   clearFolder,
@@ -34,14 +26,12 @@ import {
   writeBinary,
   writeString,
 } from "@azure-tools/uri";
-import { parseYAML } from "@azure-tools/yaml";
 import { omit } from "lodash";
 import { ArtifactWriter } from "./artifact-writer";
-import { Help } from "./help";
+import { printAutorestHelp } from "./commands";
 import { Artifact } from "./lib/artifact";
 import { AutoRest, IsOpenApiDocument, Shutdown } from "./lib/autorest-core";
 import { VERSION } from "./lib/constants";
-import { getLogLevel } from "./lib/context";
 
 let verbose = false;
 let debug = false;
@@ -100,12 +90,10 @@ csharp:
   );
 }
 
-let exitcode = 0;
-
 let cleared = false;
-async function doClearFolders(protectFiles: Set<string>, clearFolders: Set<string>) {
+async function doClearFolders(protectFiles: Set<string>, clearFolders: Set<string>, logger: IAutorestLogger) {
   if (!cleared) {
-    timestampDebugLog("Clearing Folders.");
+    logger.debug("Clearing Folders.");
     cleared = true;
     for (const folder of clearFolders) {
       try {
@@ -120,32 +108,11 @@ async function doClearFolders(protectFiles: Set<string>, clearFolders: Set<strin
   }
 }
 
-async function currentMain(autorestArgs: Array<string>): Promise<number> {
-  if (autorestArgs[0] === "init") {
-    await autorestInit();
-    return 0;
-  }
-
-  // add probes for readme.*.md files when a standalone arg is given.
-  const more = [];
-  for (const each of autorestArgs) {
-    const match = /^--([^=:]+)([=:](.+))?$/g.exec(each);
-    if (match && !match[3]) {
-      // it's a solitary --foo (ie, no specified value) argument
-      more.push(`--try-require=readme.${match[1]}.md`);
-    }
-  }
-
-  // We need to check if verbose logging should be enabled before parsing the args.
-  verbose = verbose || autorestArgs.indexOf("--verbose") !== -1;
-
-  const args = parseAutorestCliArgs([...autorestArgs, ...more]);
-
-  const logger = new AutorestSyncLogger({
-    sinks: [new ConsoleLogger()],
-    processors: [new FilterLogger({ level: getLogLevel(args.options) })],
-  });
-
+async function currentMain(
+  logger: AutorestLogger,
+  loggerSink: IAutorestLogger,
+  args: AutorestCliArgs,
+): Promise<number> {
   if (!args.options["message-format"] || args.options["message-format"] === "regular") {
     logger.info(`> Loading AutoRest core      '${__dirname}' (${VERSION})`);
   }
@@ -168,7 +135,7 @@ async function currentMain(autorestArgs: Array<string>): Promise<number> {
   const githubToken = args.options["github-auth-token"] ?? process.env.GITHUB_AUTH_TOKEN;
   // get an instance of AutoRest and add the command line switches to the configuration.
   const api = new AutoRest(
-    logger,
+    loggerSink,
     new EnhancedFileSystem(githubToken),
     resolveUri(currentDirUri, args.configFileOrFolder ?? "."),
   );
@@ -202,7 +169,7 @@ async function currentMain(autorestArgs: Array<string>): Promise<number> {
   }
 
   if (context.config["batch"]) {
-    await batch(api, args, logger);
+    await batch(api, logger);
   } else {
     const result = await api.Process().finish;
     if (result !== true) {
@@ -211,55 +178,22 @@ async function currentMain(autorestArgs: Array<string>): Promise<number> {
   }
 
   if (context.config.help) {
-    // no fs operations on --help! Instead, format and print artifacts to console.
-    // - print boilerplate help
-    console.log("");
-    console.log("");
-    console.log(color("**Usage**: autorest `[configuration-file.md] [...options]`"));
-    console.log("");
-    console.log(color("  See: https://aka.ms/autorest/cli for additional documentation"));
-    // - sort artifacts by name (then content, just for stability)
-    const helpArtifacts = artifacts.sort((a, b) =>
-      a.uri === b.uri ? (a.content > b.content ? 1 : -1) : a.uri > b.uri ? 1 : -1,
-    );
-    // - format and print
-    for (const helpArtifact of helpArtifacts) {
-      const { result: help, errors } = parseYAML<Help>(helpArtifact.content);
-      if (errors.length > 0) {
-        for (const { message, position } of errors) {
-          console.error(color(`!Parsing error at **${helpArtifact.uri}**:__${position}: ${message}__`));
-        }
-      }
-      if (!help) {
-        continue;
-      }
-      const activatedBySuffix = help.activationScope ? ` (activated by --${help.activationScope})` : "";
-      console.log("");
-      console.log(color(`### ${help.categoryFriendlyName}${activatedBySuffix}`));
-      if (help.description) {
-        console.log(color(help.description));
-      }
-      console.log("");
-      for (const settingHelp of help.settings) {
-        const keyPart = `--${settingHelp.key}`;
-        const typePart = settingHelp.type ? `=<${settingHelp.type}>` : " "; // `[=<boolean>]`;
-        const settingPart = `${keyPart}\`${typePart}\``;
-        // if (!settingHelp.required) {
-        //   settingPart = `[${settingPart}]`;
-        // }
-        console.log(color(`  ${settingPart.padEnd(30)}  **${settingHelp.description}**`));
-      }
-    }
+    printAutorestHelp(artifacts);
   } else {
     // perform file system operations.
-    await doClearFolders(protectFiles, clearFolders);
+    await doClearFolders(protectFiles, clearFolders, logger);
 
-    timestampDebugLog("Writing Outputs.");
+    logger.debug("Writing Outputs.");
     await artifactWriter.wait();
   }
-  timestampLog("Generation Complete");
+  printCompleteSummary(logger, artifactWriter);
   // return the exit code to the caller.
-  return exitcode;
+  return 0;
+}
+
+function printCompleteSummary(logger: IAutorestLogger, artifactWriter: ArtifactWriter) {
+  const runtime = Math.round(process.uptime() * 100) / 100;
+  logger.info(`Autorest completed in ${runtime}s. ${artifactWriter.stats.writeCompleted} files generated.`);
 }
 
 function shallowMerge(existing: any, more: any) {
@@ -296,13 +230,14 @@ function getRds(schema: any, path: string): Array<string> {
   return result;
 }
 
-async function resourceSchemaBatch(api: AutoRest, logger: AutorestLogger): Promise<number> {
+async function resourceSchemaBatch(api: AutoRest, logger: IAutorestLogger): Promise<number> {
   // get the configuration
   const outputs = new Map<string, string>();
   const schemas = new Array<string>();
 
   let outstanding: Promise<void> = Promise.resolve();
 
+  let exitCode = 0;
   // ask for the view without
   const config = await api.RegenerateView();
   for (const batchContext of config.getNestedConfiguration("resource-schema-batch")) {
@@ -311,7 +246,7 @@ async function resourceSchemaBatch(api: AutoRest, logger: AutorestLogger): Promi
       const path = resolveUri(config.configFileFolderUri, eachFile);
       const content = await readUri(path);
       if (!(await IsOpenApiDocument(content))) {
-        exitcode++;
+        exitCode++;
         console.error(color(`!File ${path} is not a OpenAPI file.`));
         continue;
       }
@@ -352,7 +287,7 @@ async function resourceSchemaBatch(api: AutoRest, logger: AutorestLogger): Promi
       // ok, kick off the process for that one.
       await instance.Process().finish.then(async (result) => {
         if (result !== true) {
-          exitcode++;
+          exitCode++;
           throw result;
         }
       });
@@ -361,18 +296,15 @@ async function resourceSchemaBatch(api: AutoRest, logger: AutorestLogger): Promi
 
   await outstanding;
 
-  return exitcode;
+  return exitCode;
 }
 
-async function batch(api: AutoRest, args: AutorestCliArgs, logger: AutorestLogger): Promise<void> {
+async function batch(api: AutoRest, logger: IAutorestLogger): Promise<void> {
   const config = await api.view;
   const batchTaskConfigReference: any = {};
   api.AddConfiguration(batchTaskConfigReference);
   for (const batchTaskConfig of config.GetEntry(<any>"batch")) {
-    const isjson = args.options["message-format"] === "json";
-    if (!isjson) {
-      logger.info(`Processing batch task - ${JSON.stringify(batchTaskConfig)} .`);
-    }
+    logger.info(`Processing batch task - ${JSON.stringify(batchTaskConfig)} .`);
     // update batch task config section
     for (const key of Object.keys(batchTaskConfigReference)) {
       delete batchTaskConfigReference[key];
@@ -391,61 +323,76 @@ async function batch(api: AutoRest, args: AutorestCliArgs, logger: AutorestLogge
   }
 }
 
-/**
- * Entry point
- */
-async function mainImpl(): Promise<number> {
-  let autorestArgs: Array<string> = [];
-  const exitcode = 0;
+async function main() {
+  const argv = process.argv.slice(2);
+  if (argv[0] === "init") {
+    await autorestInit();
+    return;
+  }
 
+  const args = await getCliArgs(argv);
+  if (args === undefined) {
+    // eslint-disable-next-line no-process-exit
+    process.exit(1);
+  }
+
+  const loggerSink = new ConsoleLogger({ format: args.options["message-format"] });
+  const logger = new AutorestSyncLogger({
+    sinks: [loggerSink],
+    processors: [new FilterLogger({ level: getLogLevel(args.options) })],
+  });
+
+  let exitCode = 0;
   try {
-    autorestArgs = process.argv.slice(2);
-
-    return await currentMain(autorestArgs);
+    return await currentMain(logger, loggerSink, args);
   } catch (e) {
+    exitCode = 1;
     // be very careful about the following check:
     // - doing the inversion (instanceof Error) doesn't reliably work since that seems to return false on Errors marshalled from safeEval
     if (e instanceof Exception) {
-      console.log(e.message);
-      return e.exitCode;
+      logger.log({ level: "error", message: e.message });
+      exitCode = e.exitCode;
     }
     if (e !== false) {
-      console.error(color(`!${e}`));
+      logger.log({ level: "error", message: `!${e}` });
     }
-  }
-  return 1;
-}
-
-function timestampLog(content: string) {
-  console.log(color(`[${Math.floor(process.uptime() * 100) / 100} s] ${content}`));
-}
-
-function timestampDebugLog(content: string) {
-  if (debug) {
-    console.log(color(`[${Math.floor(process.uptime() * 100) / 100} s] ${content}`));
-  }
-}
-
-async function main() {
-  let exitcode = 0;
-  try {
-    exitcode = await mainImpl();
-  } catch {
-    exitcode = 102;
+    logger.log({
+      level: "error",
+      message:
+        "Autorest completed with an error. If you think the error message is unclear, or is a bug, please declare an issues at https://github.com/Azure/autorest/issues with the error message you are seeing.",
+    });
   } finally {
     try {
-      timestampDebugLog("Shutting Down.");
+      logger.debug("Shutting Down.");
       await Shutdown();
     } catch {
-      timestampDebugLog("Shutting Down: (trouble?)");
+      logger.debug("Shutting Down: (trouble?)");
     } finally {
-      timestampDebugLog("Exiting.");
+      logger.debug("Exiting.");
       // eslint-disable-next-line no-process-exit
-      process.exit(exitcode);
+      process.exit(exitCode);
     }
   }
 }
 
+async function getCliArgs(argv: string[]) {
+  // add probes for readme.*.md files when a standalone arg is given.
+  const more = [];
+  for (const each of argv) {
+    const match = /^--([^=:]+)([=:](.+))?$/g.exec(each);
+    if (match && !match[3]) {
+      // it's a solitary --foo (ie, no specified value) argument
+      more.push(`--try-require=readme.${match[1]}.md`);
+    }
+  }
+
+  // We need to check if verbose logging should be enabled before parsing the args.
+  verbose = verbose || argv.indexOf("--verbose") !== -1;
+
+  return parseAutorestCliArgs([...argv, ...more]);
+}
+
+// Run
 void main();
 
 process.on("exit", () => {

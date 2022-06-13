@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { inspect } from "util";
-import { identitySourceMapping } from "@autorest/common";
-import { DataHandle, DataSink, IsPrefix, JsonPath, nodes, PathPosition } from "@azure-tools/datastore";
+import {
+  DataHandle,
+  DataSink,
+  IdentityPathMappings,
+  IsPrefix,
+  JsonPath,
+  nodes,
+  PathPosition,
+} from "@azure-tools/datastore";
 import {
   stringifyYamlAst,
   cloneYamlAst,
@@ -62,18 +69,13 @@ export async function manipulateObject(
     return { anyHit: false, result: src };
   }
 
-  // process
-  const mapping = identitySourceMapping(src.key, ast).filter(
-    (m) => !hits.some((hit) => IsPrefix(hit.path, m.generated)),
-  );
-
   for (const hit of hits) {
     if (ast === undefined) {
       throw new Error("Cannot remove root node.");
     }
     if (debug && config) {
       config.debug(
-        `Directive transform match path ${hit.path}. Running on value:\n------------\n${inspect(
+        `Directive transform match path '/${hit.path.join("/")}'. Running on value:\n------------\n${inspect(
           hit.value,
         )}\n------------`,
       );
@@ -146,7 +148,7 @@ export async function manipulateObject(
 
   // write back
   const resultHandle = await target.writeData("manipulated", stringifyYamlAst(ast), src.identity, src.artifactType, {
-    pathMappings: mapping,
+    pathMappings: new IdentityPathMappings(src.key),
   });
   return {
     anyHit: true,

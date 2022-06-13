@@ -79,12 +79,17 @@ export interface AutorestNormalizedConfiguration extends AutorestRawConfiguratio
   components?: any;
   batch?: boolean;
   "resource-schema-batch"?: any;
-  "perform-load"?: any;
+  "perform-load"?: boolean;
 
   /**
    * End of line for generated files.
    */
   eol?: "default" | "lf" | "crlf";
+
+  /**
+   * Include x-ms-original-file property to x-ms-examples to get path to the original file where example was.
+   */
+  "include-x-ms-examples-original-file"?: boolean;
 
   /**
    * Feature flags. Those flags enable/disable certain features

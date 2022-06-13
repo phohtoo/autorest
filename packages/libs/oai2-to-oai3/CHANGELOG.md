@@ -1,6 +1,35 @@
 # Change Log - @azure-tools/oai2-to-oai3
 
-This log was last generated on Wed, 08 Sep 2021 15:39:22 GMT and should not be manually modified.
+This log was last generated on Wed, 27 Apr 2022 18:53:11 GMT and should not be manually modified.
+
+## 4.6.1
+Wed, 27 Apr 2022 18:53:11 GMT
+
+### Patches
+
+- Fix issue with using $ref in responses inserterting $ref in the parent
+
+## 4.6.0
+Tue, 15 Mar 2022 16:00:38 GMT
+
+### Minor changes
+
+- Make use of openapi workspace
+- Extract OpenAPI2 types into @azure-tools/openapi package
+
+## 4.5.1
+Mon, 06 Dec 2021 20:16:04 GMT
+
+### Patches
+
+- **Internal** type fix
+
+## 4.5.0
+Fri, 19 Nov 2021 04:23:43 GMT
+
+### Minor changes
+
+- Copy all extensions on parameters
 
 ## 4.4.0
 Wed, 08 Sep 2021 15:39:22 GMT

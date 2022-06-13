@@ -23,7 +23,7 @@ export class DuplicateSchemaMerger {
         break;
       }
     }
-    this.session.verbose(`Found and removed ${count} duplicate schema`, {});
+    this.session.verbose(`Found and removed ${count} duplicate schema`);
     this.findDifferentSchemasWithSameName(spec);
 
     return spec;
@@ -162,7 +162,6 @@ export class DuplicateSchemaMerger {
 
     this.session.verbose(
       `Schema ${name} has multiple identical declarations, reducing to just one - removing: ${schemasToRemove.length}, keeping: ${schemaToKeep.key}`,
-      ["PreCheck", "ReducingSchema"],
     );
 
     return newSpec;
@@ -188,10 +187,10 @@ export class DuplicateSchemaMerger {
    * @returns Schema to keep and list of schema to remove.
    */
   private findSchemaToRemove(
-    spec: oai3.Model,
+    spec: oai3.OpenAPI3Document,
     schemas: DereferencedSchema[],
   ): { keep: DereferencedSchema; remove: DereferencedSchema[] } {
-    const nonRefSchema = schemas.find((x) => spec.components?.schemas?.[x.key].$ref === undefined);
+    const nonRefSchema = schemas.find((x) => (spec.components?.schemas?.[x.key] as any).$ref === undefined);
     if (nonRefSchema) {
       return { keep: nonRefSchema, remove: schemas.filter((x) => x.key !== nonRefSchema.key) };
     } else {

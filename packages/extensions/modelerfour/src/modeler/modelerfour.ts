@@ -59,7 +59,7 @@ import {
   AnyObjectSchema,
 } from "@autorest/codemodel";
 import { Session, Channel } from "@autorest/extension-base";
-import { fail, minimum, pascalCase, KnownMediaType } from "@azure-tools/codegen";
+import { fail, minimum, pascalCase, KnownMediaType, shadowPosition } from "@azure-tools/codegen";
 import {
   Model as oai3,
   Dereferenced,
@@ -71,17 +71,18 @@ import {
   NumberFormat,
   MediaType,
   omitXDashProperties,
+  OpenAPI3Document,
 } from "@azure-tools/openapi";
 import * as OpenAPI from "@azure-tools/openapi";
 import { uniq, every } from "lodash";
 import { isDefined } from "../utils";
-import { BodyProcessor } from "./body-processor";
+import { BodyProcessor, KnownMediaTypeGroupItem, RequestBodyGroup } from "./body-processor";
+import { KnownSpecialHeaders } from "./constants";
 import { Interpretations, XMSEnum } from "./interpretations";
 import { ModelerFourOptions } from "./modelerfour-options";
 import { isSchemaAnEnum, isSchemaBinary } from "./schema-utils";
 import { SecurityProcessor } from "./security-processor";
 import { isContentTypeParameterDefined } from "./utils";
-
 /** adds only if the item is not in the collection already
  *
  * @note  While this isn't very efficient, it doesn't disturb the original
@@ -132,7 +133,7 @@ class ProcessingCache<In, Out> {
 
 interface InputOperation {
   operation: OpenAPI.HttpOperation;
-  method: string;
+  method: OpenAPI.HttpMethod;
   path: string;
   pathItem: OpenAPI.PathItem;
 }
@@ -147,7 +148,6 @@ export class ModelerFour {
   private apiVersionParameter!: "choice" | "constant" | undefined;
   private useModelNamespace!: boolean | undefined;
   private profileFilter!: Array<string>;
-  private apiVersionFilter!: Array<string>;
   private schemaCache = new ProcessingCache((schema: OpenAPI.Schema, name: string) =>
     this.processSchemaImpl(schema, name),
   );
@@ -156,9 +156,10 @@ export class ModelerFour {
   private bodyProcessor: BodyProcessor;
   private securityProcessor: SecurityProcessor;
   private ignoreHeaders: Set<string> = new Set();
+  private specialHeaders: Set<string> = new Set();
 
-  constructor(protected session: Session<oai3>) {
-    this.input = session.model; // shadow(session.model, filename);
+  constructor(protected session: Session<OpenAPI3Document>) {
+    this.input = session.model; // shadowPosition(session.model);
 
     const i = this.input.info;
 
@@ -267,8 +268,10 @@ export class ModelerFour {
     }
 
     this.profileFilter = await this.session.getValue("profile", []);
-    this.apiVersionFilter = await this.session.getValue("api-version", []);
     this.ignoreHeaders = new Set(this.options["ignore-headers"] ?? []);
+    this.specialHeaders = new Set(
+      KnownSpecialHeaders.filter((x) => this.options["skip-special-headers"]?.map((x) => x.toLowerCase())?.includes(x)),
+    );
     const apiVersionMode = await this.session.getValue("api-version-mode", "auto");
 
     const apiVersionParameter =
@@ -819,10 +822,13 @@ export class ModelerFour {
     return this.codeModel.schemas.add(dictSchema);
   }
 
-  findPolymorphicDiscriminator(schema: OpenAPI.Schema | undefined): OpenAPI.Discriminator | undefined {
+  findPolymorphicDiscriminator(
+    schema: OpenAPI.Schema | undefined,
+    skipFirst = false,
+  ): OpenAPI.Discriminator | undefined {
     if (schema) {
       if (schema.type === JsonType.Object) {
-        if (schema.discriminator) {
+        if (schema.discriminator && !skipFirst) {
           return schema.discriminator;
         }
         return this.resolveArray(schema.allOf)
@@ -850,7 +856,7 @@ export class ModelerFour {
         maxProperties: schema.maxProperties ? Number(schema.maxProperties) : undefined,
         language: {
           default: {
-            summary: schema.summary || schema.title,
+            summary: schema.title,
           },
         },
       }),
@@ -859,14 +865,14 @@ export class ModelerFour {
     // cache this now before we accidentally recurse on this type.
     this.schemaCache.set(schema, objectSchema);
     for (const [propertyName, propertyDeclaration] of Object.entries(schema.properties ?? {})) {
-      const property = this.resolve(propertyDeclaration);
       this.use(<OpenAPI.Refable<OpenAPI.Schema>>propertyDeclaration, (pSchemaName, pSchema) => {
+        const property = this.resolve(propertyDeclaration);
         const pType = this.processSchema(pSchemaName || `type·for·${propertyName}`, pSchema);
         const prop = objectSchema.addProperty(
           new Property(
             this.interpret.getPreferredName(propertyDeclaration, propertyName),
             propertyDeclaration.description ||
-              this.interpret.getDescription(pType.language.default.description, property),
+              this.interpret.getDescription(pType.language.default.description, pSchema),
             pType,
             {
               readOnly: propertyDeclaration.readOnly || pSchema.readOnly,
@@ -875,7 +881,7 @@ export class ModelerFour {
               serializedName: propertyName,
               isDiscriminator: discriminatorProperty === propertyName ? true : undefined,
               extensions: this.interpret.getExtensionProperties(property, propertyDeclaration),
-              clientDefaultValue: this.interpret.getClientDefault(property.instance, propertyDeclaration),
+              clientDefaultValue: this.interpret.getClientDefault(property, propertyDeclaration),
             },
           ),
         );
@@ -952,7 +958,7 @@ export class ModelerFour {
 
     if (parents.length > 0 && xorTypes.length === 0 && orTypes.length === 0) {
       // craft the and type for the model.
-      const discriminator = this.findPolymorphicDiscriminator(schema);
+      const discriminator = this.findPolymorphicDiscriminator(schema, true);
       objectSchema.discriminatorValue = discriminator
         ? this.findDiscriminatorValue(discriminator, name, schema)
         : undefined;
@@ -1072,7 +1078,7 @@ export class ModelerFour {
 
     if (isSchemaBinary(schema)) {
       // handle inconsistency in file format handling.
-      this.session.hint(
+      this.session.warning(
         `'The schema ${schema?.["x-ms-metadata"]?.name || name} with 'type: ${schema.type}', format: ${
           schema.format
         }' will be treated as a binary blob for binary media types.`,
@@ -1198,7 +1204,7 @@ export class ModelerFour {
             // so treat this as an `integer` with no format.
             this.session.warning(
               `Integer schema '${name}' with unknown format: '${schema.format}' is not valid.  Treating it as 'int32'.`,
-              ["Modeler"],
+              ["Modeler", "UnknownFormatType"],
               schema,
             );
             return this.processIntegerSchema(name, schema);
@@ -1218,11 +1224,12 @@ export class ModelerFour {
             return this.processIntegerSchema(name, schema);
 
           default:
-            this.session.error(
-              `Number schema '${name}' with unknown format: '${schema.format}' is not valid`,
-              ["Modeler"],
+            this.session.warning(
+              `Number schema '${name}' with unknown format: '${schema.format}'. Will ignore.`,
+              ["Modeler", "UnknownFormatType"],
               schema,
             );
+            return this.processIntegerSchema(name, schema);
         }
         break;
 
@@ -1375,10 +1382,12 @@ export class ModelerFour {
   }
 
   getUniqueName(baseName: string): string {
-    let nameCount = this.uniqueNames[baseName];
-    if (typeof nameCount == "number") {
-      this.uniqueNames[baseName] = nameCount++;
-      return `${baseName}${nameCount}`;
+    const nameCount = this.uniqueNames[baseName];
+
+    if (typeof nameCount === "number") {
+      const newCount = nameCount + 1;
+      this.uniqueNames[baseName] = newCount;
+      return `${baseName}${newCount}`;
     } else {
       this.uniqueNames[baseName] = 0;
       return baseName;
@@ -1430,14 +1439,13 @@ export class ModelerFour {
   }
 
   processBinary(
-    kmt: KnownMediaType,
-    kmtBinary: Array<{ mediaType: string; schema: Dereferenced<OpenAPI.Schema | undefined> }>,
+    requestBodyGroup: RequestBodyGroup,
     operation: Operation,
     body: Dereferenced<OpenAPI.RequestBody | undefined>,
   ) {
     const http = new HttpBinaryRequest({
-      knownMediaType: kmt,
-      mediaTypes: kmtBinary.map((each) => each.mediaType),
+      knownMediaType: requestBodyGroup.type,
+      mediaTypes: requestBodyGroup.mediaTypes,
       binary: true,
     });
 
@@ -1475,12 +1483,12 @@ export class ModelerFour {
 
     const bodyName = body.instance?.["x-ms-requestBody-name"] ?? "data";
 
-    const requestSchema = kmtBinary.find((x) => !!x.schema.instance)?.schema;
+    const requestSchema = requestBodyGroup.schema;
 
     const pSchema =
-      kmt === KnownMediaType.Text
+      requestBodyGroup.type === KnownMediaType.Text
         ? this.stringSchema
-        : this.processBinarySchema(requestSchema?.name || "upload", requestSchema?.instance || <OpenAPI.Schema>{});
+        : this.processBinarySchema((requestSchema as any)?.name || "upload", requestSchema || <OpenAPI.Schema>{});
     // add a stream parameter for the body
     httpRequest.addParameter(
       new Parameter(bodyName, this.interpret.getDescription("", body?.instance || {}), pSchema, {
@@ -1492,7 +1500,7 @@ export class ModelerFour {
         },
         implementation: ImplementationLocation.Method,
         required: body.instance?.required,
-        nullable: requestSchema?.instance?.nullable,
+        nullable: requestSchema?.nullable,
         clientDefaultValue: this.interpret.getClientDefault(body?.instance || {}, {}),
       }),
     );
@@ -1501,11 +1509,11 @@ export class ModelerFour {
   }
 
   processSerializedObject(
-    kmt: KnownMediaType,
-    kmtObject: Array<{ mediaType: string; schema: Dereferenced<OpenAPI.Schema | undefined> }>,
+    requestBodyGroup: RequestBodyGroup,
     operation: Operation,
     body: Dereferenced<OpenAPI.RequestBody | undefined>,
   ) {
+    const kmt = requestBodyGroup.type;
     if (!body?.instance) {
       throw new Error("NO BODY DUDE.");
     }
@@ -1518,7 +1526,7 @@ export class ModelerFour {
           })
         : new HttpWithBodyRequest({
             knownMediaType: kmt,
-            mediaTypes: kmtObject.map((each) => each.mediaType),
+            mediaTypes: requestBodyGroup.mediaTypes,
           });
 
     // create the request object
@@ -1549,10 +1557,10 @@ export class ModelerFour {
       );
     }
 
-    const requestSchema = kmtObject.find((each) => !!each.schema.instance)?.schema;
+    const requestSchema = requestBodyGroup.schema;
 
     if (kmt === KnownMediaType.Multipart || kmt === KnownMediaType.Form) {
-      if (!requestSchema || !requestSchema.instance) {
+      if (!requestSchema) {
         throw new Error("Cannot process a multipart/form-data body without a schema.");
       }
 
@@ -1560,22 +1568,19 @@ export class ModelerFour {
       // multipart/form-data parameters be modeled as object schema properties
       // but we must turn them back into operation parameters so that code
       // generators will generate them as method parameters.
-      for (const [propertyName, propertyDeclaration] of Object.entries(requestSchema.instance.properties ?? {})) {
-        const property = this.resolve(propertyDeclaration);
+      for (const [propertyName, propertyDeclaration] of Object.entries(requestSchema.properties ?? {})) {
         this.use(<OpenAPI.Refable<OpenAPI.Schema>>propertyDeclaration, (pSchemaName, pSchema) => {
           const pType = this.processSchema(pSchemaName || `type·for·${propertyName}`, pSchema);
           httpRequest.addParameter(
             new Parameter(
               propertyName,
               propertyDeclaration.description ||
-                this.interpret.getDescription(pType.language.default.description, property),
+                this.interpret.getDescription(pType.language.default.description, pSchema),
               pType,
               {
                 schema: pType,
                 required:
-                  requestSchema.instance?.required && requestSchema.instance?.required.indexOf(propertyName) > -1
-                    ? true
-                    : undefined,
+                  requestSchema.required && requestSchema.required.indexOf(propertyName) > -1 ? true : undefined,
                 implementation: ImplementationLocation.Method,
                 extensions: this.interpret.getExtensionProperties(propertyDeclaration),
                 nullable: propertyDeclaration.nullable || pSchema.nullable,
@@ -1600,10 +1605,7 @@ export class ModelerFour {
         });
       }
     } else {
-      const pSchema = this.processSchema(
-        requestSchema?.name || "requestBody",
-        requestSchema?.instance || <OpenAPI.Schema>{},
-      );
+      const pSchema = this.processSchema((requestSchema as any)?.name || "requestBody", requestSchema ?? {});
 
       // Track the usage of this schema as an input with media type
       this.trackSchemaUsage(pSchema, { usage: [SchemaContext.Input], serializationFormats: [kmt] });
@@ -1616,7 +1618,7 @@ export class ModelerFour {
           {
             extensions: this.interpret.getExtensionProperties(body.instance),
             required: !!body.instance.required,
-            nullable: requestSchema?.instance?.nullable,
+            nullable: requestSchema?.nullable,
             protocol: {
               http: new HttpParameter(ParameterLocation.Body, {
                 style: <SerializationStyle>(<any>kmt),
@@ -1632,19 +1634,26 @@ export class ModelerFour {
     return operation.addRequest(httpRequest);
   }
 
-  processOperation(httpOperation: OpenAPI.HttpOperation, method: string, path: string, pathItem: OpenAPI.PathItem) {
+  processOperation(
+    httpOperation: OpenAPI.HttpOperation,
+    method: OpenAPI.HttpMethod,
+    path: string,
+    pathItem: OpenAPI.PathItem,
+  ) {
     const p = path.indexOf("?");
-    path = p > -1 ? path.substr(0, p) : path;
+    path = p > -1 ? path.substring(0, p) : path;
 
     // get group and operation name
-    const { group, member } = this.interpret.getOperationId(method, path, httpOperation);
+    const { group, member, operationId } = this.interpret.getOperationId(method, path, httpOperation);
     const memberName = httpOperation["x-ms-client-name"] ?? member;
     const operationGroup = this.codeModel.getOperationGroup(group);
     const operation = operationGroup.addOperation(
       new Operation(memberName, this.interpret.getDescription("", httpOperation), {
+        operationId,
         extensions: this.interpret.getExtensionProperties(httpOperation),
         apiVersions: this.interpret.getApiVersions(pathItem),
         deprecated: this.interpret.getDeprecation(httpOperation),
+        externalDocs: this.interpret.getExternalDocs(httpOperation),
         language: {
           default: {
             summary: httpOperation.summary,
@@ -1670,7 +1679,11 @@ export class ModelerFour {
     this.processParameters(httpOperation, operation, pathItem);
 
     // === Requests ===
-    this.processRequestBody(httpOperation, method, operationGroup, operation, path, baseUri);
+    if (!this.options["legacy-request-body"]) {
+      this.processRequestBody(httpOperation, method, operationGroup, operation, path, baseUri);
+    } else {
+      this.processRequestBodyLegacy(httpOperation, method, operationGroup, operation, path, baseUri);
+    }
 
     // === Response ===
     this.processResponses(httpOperation, operation);
@@ -1701,8 +1714,7 @@ export class ModelerFour {
         {
           const server = servers[0];
           // trim extraneous slash .
-          const uri =
-            server.url.endsWith("/") && path.startsWith("/") ? server.url.substr(0, server.url.length - 1) : server.url;
+          const uri = server.url.endsWith("/") && path.startsWith("/") ? server.url.slice(0, -1) : server.url;
 
           if (server.variables === undefined || Object.keys(server.variables).length === 0) {
             // scenario 1 : single static value
@@ -1961,13 +1973,31 @@ export class ModelerFour {
   }
 
   processParameters(httpOperation: OpenAPI.HttpOperation, operation: Operation, pathItem: OpenAPI.PathItem) {
-    const parameters = Object.values(httpOperation.parameters ?? {})
-      .map((each) => dereference(this.input, each))
-      .filter((x) => !this.isParameterIgnoredHeader(x.instance));
+    const parameters = Object.values(httpOperation.parameters ?? {}).map((x) => ({
+      ...dereference<OpenAPI.Parameter>(this.input, x),
+      original: x,
+    }));
 
     for (const pp of parameters) {
       const parameter = pp.instance;
-
+      if (this.isParameterSpecialHeader(parameter)) {
+        if (operation.specialHeaders === undefined) {
+          operation.specialHeaders = [];
+        }
+        operation.specialHeaders.push(parameter.name);
+        continue;
+      }
+      if (this.isParameterIgnoredHeader(parameter)) {
+        continue;
+      }
+      if (parameter.content) {
+        this.session.error(
+          `Parameter '${parameter.name}' in '${parameter.in}' has content.<mediaType> which is not supported right now. Use schema instead. See https://github.com/Azure/autorest/issues/4303`,
+          ["Modelerfour/ParameterContentNotSupported"],
+          parameter,
+        );
+        continue;
+      }
       this.use(parameter.schema, (name, schema) => {
         if (this.apiVersionMode !== "none" && this.interpret.isApiVersionParameter(parameter)) {
           return this.processApiVersionParameter(parameter, operation, pathItem);
@@ -1975,10 +2005,10 @@ export class ModelerFour {
 
         // Not an APIVersion Parameter
         const implementation = pp.fromRef
-          ? "method" === <any>parameter["x-ms-parameter-location"]
+          ? "method" === parameter["x-ms-parameter-location"]
             ? ImplementationLocation.Method
             : ImplementationLocation.Client
-          : "client" === <any>parameter["x-ms-parameter-location"]
+          : "client" === parameter["x-ms-parameter-location"]
           ? ImplementationLocation.Client
           : ImplementationLocation.Method;
 
@@ -2007,14 +2037,15 @@ export class ModelerFour {
           parameterSchema = dictionarySchema;
         }
 
+        const description = pp.original.description || this.interpret.getDescription("", parameter);
         /* regular, everyday parameter */
         const newParam = operation.addParameter(
-          new Parameter(preferredName, this.interpret.getDescription("", parameter), parameterSchema, {
+          new Parameter(preferredName, description, parameterSchema, {
             required: parameter.required ? true : undefined,
             implementation,
             extensions: this.interpret.getExtensionProperties(parameter),
             deprecated: this.interpret.getDeprecation(parameter),
-            nullable: parameter.nullable || schema.nullable,
+            nullable: (parameter as any).nullable || schema.nullable,
             protocol: {
               http: new HttpParameter(
                 parameter.in,
@@ -2048,6 +2079,15 @@ export class ModelerFour {
         return newParam;
       });
     }
+  }
+
+  /**
+   * Resolve if the parameter is a header that should be ignored.
+   * @param parmeter Operation parameter.
+   * @returns boolean if parameter should be ignored.
+   */
+  private isParameterSpecialHeader(parmeter: OpenAPI.Parameter) {
+    return parmeter.in === ParameterLocation.Header && this.specialHeaders.has(parmeter.name.toLowerCase());
   }
 
   /**
@@ -2234,12 +2274,71 @@ export class ModelerFour {
 
   processRequestBody(
     httpOperation: OpenAPI.HttpOperation,
+    httpMethod: OpenAPI.HttpMethod,
+    operationGroup: OperationGroup,
+    operation: Operation,
+    path: string,
+    baseUri: string,
+  ) {
+    const operationName = `${operationGroup.language.default.name}/${operation.language.default.name}`;
+    const requestBody = this.resolve(httpOperation.requestBody);
+    this.bodyProcessor.validateBodyContentTypes(httpMethod, httpOperation, operationName);
+    if (requestBody.instance == undefined) {
+      // no request body present  which means there should just be a simple request with no parameters added to the operation.
+      this.bodyProcessor.addNoBodyRequest(operation, httpMethod, path, baseUri);
+      return;
+    }
+    const groups = this.bodyProcessor.groupRequestBodyBySchema(requestBody.instance.content, operationName);
+
+    for (const group of groups) {
+      switch (group.type) {
+        case KnownMediaType.Binary:
+        case KnownMediaType.Text:
+          this.processBinary(group, operation, requestBody);
+          break;
+        case KnownMediaType.Json:
+        case KnownMediaType.Xml:
+        case KnownMediaType.Form:
+        case KnownMediaType.Multipart:
+          this.processSerializedObject(group, operation, requestBody);
+          break;
+      }
+    }
+
+    operation.requestMediaTypes = {};
+
+    // ensure the protocol information is set on the requests
+    for (const request of operation.requests ?? []) {
+      is(request.protocol.http);
+      request.protocol.http.method = httpMethod as HttpMethod;
+      request.protocol.http.path = path;
+      request.protocol.http.uri = baseUri;
+      for (const mediaType of request.protocol.http.mediaTypes) {
+        operation.requestMediaTypes[mediaType] = request;
+      }
+    }
+  }
+
+  /**
+   * LEGACY Body processing as changed in https://github.com/Azure/autorest/pull/4405
+   */
+  processRequestBodyLegacy(
+    httpOperation: OpenAPI.HttpOperation,
     httpMethod: string,
     operationGroup: OperationGroup,
     operation: Operation,
     path: string,
     baseUri: string,
   ) {
+    const getGroup = (type: KnownMediaType, kmt: KnownMediaTypeGroupItem[]): RequestBodyGroup => {
+      return {
+        type,
+        mediaTypes: kmt.map((each) => each.mediaType),
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        schema: kmt.find((x) => !!x.schema.instance)!.schema!.instance!,
+      };
+    };
+
     const requestBody = this.resolve(httpOperation.requestBody);
     if (requestBody.instance) {
       const groupedMediaTypes = this.bodyProcessor.groupMediaTypes(requestBody.instance.content);
@@ -2271,30 +2370,29 @@ export class ModelerFour {
       const kmtBinary = groupedMediaTypes.get(KnownMediaType.Binary);
       const kmtJSON = groupedMediaTypes.get(KnownMediaType.Json);
       if (kmtBinary) {
-        // handle binary
-        this.processBinary(KnownMediaType.Binary, kmtBinary, operation, requestBody);
+        this.processBinary(getGroup(KnownMediaType.Binary, kmtBinary), operation, requestBody);
       }
       const kmtText = groupedMediaTypes.get(KnownMediaType.Text);
       if (kmtText) {
-        this.processBinary(KnownMediaType.Text, kmtText, operation, requestBody);
+        this.processBinary(getGroup(KnownMediaType.Text, kmtText), operation, requestBody);
       }
       if (kmtJSON) {
-        this.processSerializedObject(KnownMediaType.Json, kmtJSON, operation, requestBody);
+        this.processSerializedObject(getGroup(KnownMediaType.Json, kmtJSON), operation, requestBody);
       }
       const kmtXML = groupedMediaTypes.get(KnownMediaType.Xml);
       if (kmtXML && !kmtJSON) {
         // only do XML if there is not a JSON body
-        this.processSerializedObject(KnownMediaType.Xml, kmtXML, operation, requestBody);
+        this.processSerializedObject(getGroup(KnownMediaType.Xml, kmtXML), operation, requestBody);
       }
       const kmtForm = groupedMediaTypes.get(KnownMediaType.Form);
       if (kmtForm && !kmtXML && !kmtJSON) {
         // only do FORM if there is not an JSON or XML body
-        this.processSerializedObject(KnownMediaType.Form, kmtForm, operation, requestBody);
+        this.processSerializedObject(getGroup(KnownMediaType.Form, kmtForm), operation, requestBody);
       }
       const kmtMultipart = groupedMediaTypes.get(KnownMediaType.Multipart);
       if (kmtMultipart) {
         // create multipart form upload for this.
-        this.processSerializedObject(KnownMediaType.Multipart, kmtMultipart, operation, requestBody);
+        this.processSerializedObject(getGroup(KnownMediaType.Multipart, kmtMultipart), operation, requestBody);
       }
       // ensure the protocol information is set on the requests
       for (const request of operation.requests ?? []) {

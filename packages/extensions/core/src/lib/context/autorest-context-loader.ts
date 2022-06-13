@@ -10,6 +10,7 @@ import {
   AutorestConfiguration,
   AutorestRawConfiguration,
   ConfigurationLoader,
+  getLogLevel,
   getNestedConfiguration,
   mergeConfigurations,
   ResolvedExtension,
@@ -17,10 +18,11 @@ import {
 import { CachingFileSystem, IFileSystem, LazyPromise, RealFileSystem } from "@azure-tools/datastore";
 import { Extension, ExtensionManager } from "@azure-tools/extension";
 import { createFileOrFolderUri, createFolderUri, resolveUri } from "@azure-tools/uri";
+import { last } from "lodash";
 import { AppRoot } from "../constants";
 import { AutoRestExtension } from "../pipeline/plugin-endpoint";
 import { StatsCollector } from "../stats";
-import { AutorestContext, getLogLevel } from "./autorest-context";
+import { AutorestContext } from "./autorest-context";
 import { MessageEmitter } from "./message-emitter";
 
 const inWebpack = typeof __webpack_require__ === "function";
@@ -115,7 +117,8 @@ export class AutorestContextLoader {
   private setupExtensions(config: AutorestConfiguration, extensions: ResolvedExtension[]) {
     for (const { extension, definition } of extensions) {
       if (!loadedExtensions[definition.fullyQualified]) {
-        const shortname = definition.name.split("/").last.replace(/^autorest\./gi, "");
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const shortname = last(definition.name.split("/"))!.replace(/^autorest\./gi, "");
         const nestedConfig = [...getNestedConfiguration(config, shortname)][0];
         const enableDebugger = nestedConfig?.["debugger"];
 

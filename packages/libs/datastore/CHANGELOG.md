@@ -1,6 +1,27 @@
 # Change Log - @azure-tools/datastore
 
-This log was last generated on Wed, 08 Sep 2021 15:39:22 GMT and should not be manually modified.
+This log was last generated on Tue, 15 Mar 2022 16:00:38 GMT and should not be manually modified.
+
+## 4.6.1
+Tue, 15 Mar 2022 16:00:38 GMT
+
+_Version update only_
+
+## 4.6.0
+Fri, 19 Nov 2021 04:23:42 GMT
+
+### Minor changes
+
+- Added support for identity sourcemap type
+
+### Patches
+
+- **Fix** Performance issue with not reusing DataHandle causing multiple instance of sourcemaps to be loaded at the same time
+
+## 4.5.1
+Thu, 14 Oct 2021 23:03:29 GMT
+
+_Version update only_
 
 ## 4.5.0
 Wed, 08 Sep 2021 15:39:22 GMT

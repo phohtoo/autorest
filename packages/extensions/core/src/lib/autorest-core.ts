@@ -11,6 +11,7 @@ import {
   AutorestLoggerSourceEnhancer,
   AutorestAsyncLogger,
   AutorestLogger,
+  PluginUserError,
 } from "@autorest/common";
 import { isConfigurationDocument } from "@autorest/configuration";
 import { IFileSystem, RealFileSystem } from "@azure-tools/datastore";
@@ -145,15 +146,12 @@ export class AutoRest extends EventEmitter {
           }
         };
         if (view.config.inputFileUris.length === 0) {
-          if (view.GetEntry("allow-no-input")) {
-            this.Finished.Dispatch(true);
-            return true;
-          } else {
-            // if this is using perform-load we don't need to require files.
-            // if it's using batch, we might not have files in the main body
-            if (view.config.raw["perform-load"] !== false) {
-              return new Exception("No input files provided.\n\nUse --help to get help information.");
-            }
+          // if this is using perform-load we don't need to require files.
+          // if it's using batch, we might not have files in the main body
+          if (view.config["perform-load"] !== false && !view.config["allow-no-input"]) {
+            return new Exception(
+              "No input files provided.\n\nUse --help to get help information or see https://aka.ms/autorest/cli for additional documentation",
+            );
           }
         }
 
@@ -176,18 +174,15 @@ export class AutoRest extends EventEmitter {
         view.messageEmitter.removeAllListeners();
         return true;
       } catch (e: any) {
-        const message = view?.config.debug
-          ? ({
-              level: "fatal",
-              message: `Process() cancelled due to exception : ${e.message ? e.message : e} / ${
-                e.stack ? e.stack : ""
-              }`,
-            } as const)
-          : ({
-              level: "fatal",
-              message: "Process() cancelled due to failure ",
-            } as const);
-        this.loggerSink.log(message);
+        if (e instanceof PluginUserError) {
+          this.loggerSink.log({ level: "fatal", message: e.message });
+        } else {
+          const message = view?.config.debug
+            ? `Process() cancelled due to exception : ${e.message ? e.message : e} / ${e.stack ? e.stack : ""}`
+            : "Process() cancelled due to failure ";
+          this.loggerSink.log({ level: "fatal", message });
+        }
+
         // Wait for all logs to have been sent before shutting down.
         await AutorestLoggingSession.waitForMessages();
         this.Finished.Dispatch(false);

@@ -10,7 +10,14 @@ import { join } from "path";
 import { resolveUri } from "@azure-tools/uri";
 import { RawSourceMap } from "source-map";
 import { IFileSystem } from "../file-system/file-system";
-import { PathMapping, PathPosition, PathSourceMap, Position, PositionSourceMap } from "../source-map";
+import {
+  PathMapping,
+  PathPosition,
+  PathSourceMap,
+  Position,
+  PositionSourceMap,
+  IdentityPathMappings,
+} from "../source-map";
 import { BlameTree } from "../source-map/blaming";
 
 import { Data, DataHandle } from "./data-handle";
@@ -27,7 +34,7 @@ const FALLBACK_DEFAULT_OUTPUT_ARTIFACT = "";
  ********************************************/
 
 interface Store {
-  [uri: string]: Data;
+  [uri: string]: DataHandle;
 }
 
 export interface DataStoreOptions {
@@ -67,7 +74,7 @@ export class DataStore {
     data: string,
     artifactType: string,
     identity: Array<string>,
-    mappings?: PathMapping[],
+    mappings?: PathMapping[] | IdentityPathMappings,
     sourceMapFactory?: (self: DataHandle) => Promise<RawSourceMap>,
   ): Promise<DataHandle> {
     const uri = this.createUri(description);
@@ -78,7 +85,7 @@ export class DataStore {
     // make a sanitized name
     let filename = uri.replace(/[^\w.()]+/g, "-");
     if (filename.length > 64) {
-      filename = `${md5(filename)}-${filename.substr(filename.length - 64)}`;
+      filename = `${md5(filename)}-${filename.slice(-64)}`;
     }
     const name = join(await this.getCacheFolder(), filename);
 
@@ -91,14 +98,12 @@ export class DataStore {
       pathSourceMap: undefined,
       positionSourceMap: undefined,
     };
-    this.store[uri] = item;
-
-    const handle = await this.read(uri);
+    const handle = (this.store[uri] = new DataHandle(uri, item, this.options.autoUnloadData));
     if (sourceMapFactory) {
       item.positionSourceMap = new PositionSourceMap(name, await sourceMapFactory(handle));
     }
     if (mappings) {
-      item.pathSourceMap = new PathSourceMap(name, mappings);
+      item.pathSourceMap = mappings instanceof IdentityPathMappings ? mappings : new PathSourceMap(name, mappings);
     }
 
     return handle;
@@ -125,7 +130,7 @@ export class DataStore {
     if (entry === undefined) {
       throw new Error(`Object '${absoluteUri}' does not exist.`);
     }
-    return new DataHandle(absoluteUri, entry, this.options.autoUnloadData);
+    return entry;
   }
 
   public async read(uri: string): Promise<DataHandle> {
@@ -134,7 +139,7 @@ export class DataStore {
     if (!data) {
       throw new Error(`Could not read '${uri}'.`);
     }
-    return new DataHandle(uri, data, this.options.autoUnloadData);
+    return data;
   }
 
   public async blame(absoluteUri: string, position: Position | PathPosition): Promise<BlameTree> {

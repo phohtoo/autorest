@@ -26,8 +26,9 @@ import { BooleanSchema, CharSchema } from "./common/schemas/primitive";
 import { OrSchema, XorSchema } from "./common/schemas/relationship";
 import { StringSchema, ODataQuerySchema, CredentialSchema, UriSchema, UuidSchema } from "./common/schemas/string";
 import { DurationSchema, DateTimeSchema, DateSchema, UnixTimeSchema, TimeSchema } from "./common/schemas/time";
-import { AADTokenSecurityScheme, AzureKeySecurityScheme, Security } from "./common/security";
+import { OAuth2SecurityScheme, KeySecurityScheme, Security } from "./common/security";
 import { Value } from "./common/value";
+import { AADTokenSecurityScheme, AzureKeySecurityScheme } from "./deprecated";
 import {
   HttpWithBodyRequest,
   HttpParameter,
@@ -138,8 +139,9 @@ export const codeModelSchema = DEFAULT_SCHEMA.extend([
   TypeInfo(License),
   TypeInfo(OperationGroup),
 
-  TypeInfo(AADTokenSecurityScheme),
-  TypeInfo(AzureKeySecurityScheme),
+  TypeInfo(OAuth2SecurityScheme),
+  TypeInfo(KeySecurityScheme),
+
   TypeInfo(Languages),
   TypeInfo(Language),
   TypeInfo(CSharpLanguage),
@@ -147,5 +149,7 @@ export const codeModelSchema = DEFAULT_SCHEMA.extend([
   TypeInfo(ApiVersion),
   TypeInfo(Metadata),
 
-  // new Type('!set', { kind: 'mapping', instanceOf: Set, represent: (o: any) => [...o], construct: (i) => new Set(i) }),
+  // Deprecated types for backward compatiblity only.
+  TypeInfo(AADTokenSecurityScheme),
+  TypeInfo(AzureKeySecurityScheme),
 ]);

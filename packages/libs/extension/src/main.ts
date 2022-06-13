@@ -6,9 +6,14 @@
 import { ChildProcess, spawn } from "child_process";
 import { homedir, tmpdir } from "os";
 import { basename, delimiter, dirname, extname, isAbsolute, join, normalize, resolve } from "path";
-import { exists, isDirectory, isFile, mkdir, readdir, readFile, rmdir } from "@azure-tools/async-io";
-import { Progress, Subscribe } from "@azure-tools/eventing";
-import { CriticalSection, Delay, Exception, Mutex, shallowCopy, SharedLock } from "@azure-tools/tasks";
+import {
+  patchPythonPath,
+  PythonCommandLine,
+  ExtensionSystemRequirements,
+  validateExtensionSystemRequirements,
+} from "@autorest/system-requirements";
+import { exists, isDirectory, isFile, mkdir, readdir, rmdir } from "@azure-tools/async-io";
+import { Delay, Exception, Mutex, SharedLock } from "@azure-tools/tasks";
 import { resolve as npmResolvePackage } from "npm-package-arg";
 import * as pacote from "pacote";
 import * as semver from "semver";
@@ -21,16 +26,15 @@ import {
   UnsatisfiedSystemRequirementException,
 } from "./exceptions";
 import { Extension, Package } from "./extension";
+import { AsyncLock } from "./locks/async-lock";
 import { logger } from "./logger";
 import { Npm } from "./npm";
-import { PackageManager, PackageManagerType } from "./package-manager";
-import {
-  patchPythonPath,
-  PythonCommandLine,
-  ExtensionSystemRequirements,
-  validateExtensionSystemRequirements,
-} from "./system-requirements";
+import { PackageManager, PackageManagerLogEntry, PackageManagerProgress, PackageManagerType } from "./package-manager";
 import { Yarn } from "./yarn";
+
+export interface PackageInstallProgress extends PackageManagerProgress {
+  pkg: Package;
+}
 
 function quoteIfNecessary(text: string): string {
   if (text && text.indexOf(" ") > -1 && text.charAt(0) != '"') {
@@ -204,9 +208,15 @@ export class ExtensionManager {
     private packageManager: PackageManager,
   ) {}
 
-  public async getPackageVersions(name: string): Promise<Array<string>> {
-    const versions = await this.packageManager.getPackageVersions(process.cwd(), name);
-    return versions.sort((b, a) => semver.compare(a, b));
+  /**
+   * Return the list of version for the given package name [+ version range]
+   *
+   * @param name Name of the package with or without version range.
+   * @returns List of semver versions
+   */
+  public async getPackageVersions(name: string): Promise<string[]> {
+    const packument = await pacote.packument(name);
+    return Object.keys(packument.versions);
   }
 
   public async findPackage(name: string, version = "latest"): Promise<Package> {
@@ -219,15 +229,8 @@ export class ExtensionManager {
       // version can be a version or any one of the formats that
       // npm accepts (path, targz, git repo)
       const resolved = resolveName(name, version);
-      let resolvedName = resolved.raw;
+      const resolvedName = resolved.raw;
 
-      // get all matching package versions for that
-      if (version.startsWith("~") || version.startsWith("^")) {
-        const vers = (await this.getPackageVersions(resolved.raw)).filter((each) => semver.satisfies(each, version));
-        if (vers.length > 0) {
-          resolvedName = `${resolved.name}@${vers[0]}`;
-        }
-      }
       // get the package metadata
       const pm = await fetchPackageMetadata(resolvedName);
       return new Package(resolved, pm, this);
@@ -315,27 +318,23 @@ export class ExtensionManager {
     return results;
   }
 
-  private static criticalSection = new CriticalSection();
+  private static lock = new AsyncLock();
 
   public async installPackage(
     pkg: Package,
     force?: boolean,
     maxWait: number = 5 * 60 * 1000,
-    progressInit: Subscribe = () => {},
+    reportProgress: (progress: PackageInstallProgress) => void = () => {},
   ): Promise<Extension> {
     if (!this.sharedLock) {
       throw new Exception("Extension manager has been disposed.");
     }
 
-    const progress = new Progress(progressInit);
-
-    progress.Start.Dispatch(null);
-
     // will throw if the CriticalSection lock can't be acquired.
     // we need this so that only one extension at a time can start installing
     // in this process (since to use NPM right, we have to do a change dir before runinng it)
     // if we ran NPM out-of-proc, this probably wouldn't be necessary.
-    const extensionRelease = await ExtensionManager.criticalSection.acquire(maxWait);
+    const extensionRelease = await ExtensionManager.lock.acquire(maxWait);
 
     if (!(await exists(this.installationPath))) {
       await mkdir(this.installationPath);
@@ -343,12 +342,10 @@ export class ExtensionManager {
 
     const extension = new Extension(pkg, this.installationPath);
     const release = await new Mutex(extension.location).acquire(maxWait / 2);
-    const cwd = process.cwd();
 
     try {
       // change directory
       process.chdir(this.installationPath);
-      progress.Progress.Dispatch(25);
 
       if (await isDirectory(extension.location)) {
         if (!force) {
@@ -359,7 +356,7 @@ export class ExtensionManager {
 
         // force removal first
         try {
-          progress.NotifyMessage(`Removing existing extension ${extension.location}`);
+          // progress.NotifyMessage(`Removing existing extension ${extension.location}`);
           await Delay(100);
           await rmdir(extension.location);
         } catch (e) {
@@ -370,23 +367,22 @@ export class ExtensionManager {
       // create the folder
       await mkdir(extension.location);
 
-      progress.NotifyMessage(`Installing ${pkg.name}, ${pkg.version}`);
-
-      const results = this.packageManager.install(extension.location, [pkg.packageMetadata._resolved], { force });
+      const pkgRef = getPkgRef(pkg.packageMetadata);
+      const promise = this.packageManager.install(extension.location, [pkgRef], { force }, (progress) => {
+        reportProgress({ pkg, ...progress });
+      });
       await extensionRelease();
 
-      await results;
-      progress.NotifyMessage(`Package Install completed ${pkg.name}, ${pkg.version}`);
-
-      return extension;
-    } catch (e: any) {
-      progress.NotifyMessage(e);
-      if (e.stack) {
-        progress.NotifyMessage(e.stack);
+      const result = await promise;
+      if (result.success) {
+        return extension;
+      } else {
+        const message = [result.error.message, "", "Installation logs: ", formatLogEntries(result.error.logs)];
+        throw new PackageInstallationException(pkg.name, pkg.version, message.join("\n"));
       }
+    } catch (e: any) {
       // clean up the attempted install directory
       if (await isDirectory(extension.location)) {
-        progress.NotifyMessage(`Cleaning up failed installation: ${extension.location}`);
         await Delay(100);
         await rmdir(extension.location);
       }
@@ -394,13 +390,14 @@ export class ExtensionManager {
       if (e instanceof Exception) {
         throw e;
       }
+      if (e instanceof PackageInstallationException) {
+        throw e;
+      }
       if (e instanceof Error) {
         throw new PackageInstallationException(pkg.name, pkg.version, e.message + e.stack);
       }
       throw new PackageInstallationException(pkg.name, pkg.version, `${e}`);
     } finally {
-      progress.Progress.Dispatch(100);
-      progress.End.Dispatch(null);
       await Promise.all([extensionRelease(), release()]);
     }
   }
@@ -436,7 +433,7 @@ export class ExtensionManager {
       throw new MissingStartCommandException(extension);
     }
     // add each engine into the front of the path.
-    const env = shallowCopy(process.env);
+    const env = { ...process.env };
 
     // add potential .bin folders (depends on platform and npm version)
     env[PathVar] = `${join(extension.modulePath, "node_modules", ".bin")}${delimiter}${env[PathVar]}`;
@@ -515,4 +512,24 @@ export class ExtensionManager {
       throw new UnsatisfiedSystemRequirementException(extension, errors);
     }
   }
+}
+
+function formatLogEntries(entries: PackageManagerLogEntry[]): string {
+  const lines = ["```", ...entries.map(formatLogEntry), "```"];
+  return lines.join("\n");
+}
+
+function formatLogEntry(entry: PackageManagerLogEntry): string {
+  const [first, ...lines] = entry.message.split("\n");
+  const spacing = " ".repeat(entry.severity.length);
+  return [`${entry.severity}: ${first}`, ...lines.map((x) => `${spacing}  ${x}`)].join("\n");
+}
+
+function getPkgRef(pkg: pacote.ManifestResult) {
+  // Change in pacote https://github.com/npm/pacote/issues/20
+  // Issue with git+ssh in yarn + performance of git+https is much worse that github https://github.com/yarnpkg/yarn/issues/6417
+  // if (pkg._from.startsWith("github:")) {
+  //   return pkg._from;
+  // }
+  return pkg._resolved;
 }

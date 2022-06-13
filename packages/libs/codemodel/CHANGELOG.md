@@ -1,6 +1,44 @@
 # Change Log - @autorest/codemodel
 
-This log was last generated on Wed, 08 Sep 2021 15:39:22 GMT and should not be manually modified.
+This log was last generated on Wed, 16 Mar 2022 19:40:12 GMT and should not be manually modified.
+
+## 4.18.2
+Wed, 16 Mar 2022 19:40:12 GMT
+
+### Patches
+
+- Yaml schema missing deprecated models
+
+## 4.18.1
+Wed, 16 Mar 2022 15:14:54 GMT
+
+### Patches
+
+- Add back old security types to prevent breaking changes
+
+## 4.18.0
+Tue, 15 Mar 2022 16:00:38 GMT
+
+### Minor changes
+
+- Add `operationId` on Operation
+- **Added** `requestMediaTypes` containing a mapping of all media types for a given operation to its request
+- **Breaking** Renamed `AADTokenSecurityScheme` to `OAuth2SecurityScheme` and renamed `AzureKeySecurityScheme` to `KeySecurityScheme`
+- Added special header to operation
+
+### Patches
+
+- Regen codemodel schema
+
+## 4.17.2
+Fri, 19 Nov 2021 04:23:43 GMT
+
+_Version update only_
+
+## 4.17.1
+Thu, 14 Oct 2021 23:03:29 GMT
+
+_Version update only_
 
 ## 4.17.0
 Wed, 08 Sep 2021 15:39:22 GMT

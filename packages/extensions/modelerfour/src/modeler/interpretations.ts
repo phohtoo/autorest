@@ -16,6 +16,7 @@ import {
   ParameterLocation,
   includeXDashKeys,
   includeXDashProperties,
+  omitXDashProperties,
 } from "@azure-tools/openapi";
 import { keyBy } from "lodash";
 export interface XMSEnum {
@@ -243,8 +244,13 @@ export class Interpretations {
     }
     return undefined;
   }
-  getExternalDocs(schema: OpenAPI.Schema): ExternalDocumentation | undefined {
-    return undefined;
+
+  getExternalDocs(item: { externalDocs?: OpenAPI.ExternalDocumentation }): ExternalDocumentation | undefined {
+    return item.externalDocs
+      ? new ExternalDocumentation(item.externalDocs.url, {
+          description: item.externalDocs.description,
+        })
+      : undefined;
   }
   getExample(schema: OpenAPI.Schema): any {
     return undefined;
@@ -294,8 +300,8 @@ export class Interpretations {
 
     return p != -1
       ? {
-          group: opId.substr(0, p),
-          member: opId.substr(p + 1),
+          group: opId.slice(0, p),
+          member: opId.slice(p + 1),
         }
       : {
           group: "",
@@ -310,9 +316,16 @@ export class Interpretations {
     );
   }
 
-  getOperationId(httpMethod: string, path: string, original: OpenAPI.HttpOperation) {
+  getOperationId(
+    httpMethod: string,
+    path: string,
+    original: OpenAPI.HttpOperation,
+  ): { member: string; group: string; operationId?: string } {
     if (original.operationId) {
-      return this.splitOpId(original.operationId);
+      return {
+        ...this.splitOpId(original.operationId),
+        operationId: original.operationId,
+      };
     }
 
     // synthesize from tags.

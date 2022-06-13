@@ -6,6 +6,7 @@
 /* eslint-disable no-prototype-builtins */
 
 import { JsonPath, PathMapping } from "@azure-tools/datastore";
+import { walk } from "@azure-tools/json";
 import { Stringify, YamlNode, walkYamlAst } from "@azure-tools/yaml";
 
 /**
@@ -170,6 +171,15 @@ export function mergeOverwriteOrAppend(
     interpolationContext: options.interpolationContext ?? higherPriority,
   };
 
+  // if (higherPriority === true && typeof lowerPriority.extensions) {
+  //   console.log("Merge", higherPriority, lowerPriority);
+  // }
+
+  // Take care of the case where an option is enable via a flag `--az` and then nested config under it don't work(az.extensions)
+  if (higherPriority === true && typeof lowerPriority === "object") {
+    return lowerPriority;
+  }
+
   // scalars/arrays involved
   if (
     typeof higherPriority !== "object" ||
@@ -184,6 +194,7 @@ export function mergeOverwriteOrAppend(
   const result: any = {};
 
   const keys = getKeysInOrder(higherPriority, lowerPriority, computedOptions);
+
   for (const key of keys) {
     const subpath = path.concat(key);
 
@@ -245,16 +256,4 @@ function mergeArray(
   } else {
     return [...new Set(lowerPriorityArray.concat(higherPriority))];
   }
-}
-
-export function identitySourceMapping(sourceYamlFileName: string, sourceYamlAst: YamlNode): PathMapping[] {
-  const result: PathMapping[] = [];
-  walkYamlAst(sourceYamlAst, (x) => {
-    result.push({
-      generated: x.path,
-      original: x.path,
-      source: sourceYamlFileName,
-    });
-  });
-  return result;
 }

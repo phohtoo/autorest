@@ -1,10 +1,15 @@
 /**
  * Represent a json reference.
  */
-export interface JsonRef {
-  file?: string;
-  path?: string;
-}
+export type JsonRef =
+  | {
+      file: string;
+      path?: string;
+    }
+  | {
+      path: string;
+      file?: string;
+    };
 
 /**
  * Parse a json reference into its file and path.
@@ -13,7 +18,10 @@ export interface JsonRef {
  */
 export function parseJsonRef(ref: string): JsonRef {
   const [file, path] = ref.split("#");
-  return { file: file === "" ? undefined : file, path };
+  return {
+    file: file === "" ? undefined : file,
+    path: path === undefined ? (undefined as any) : decodeURIComponent(path),
+  };
 }
 
 /**

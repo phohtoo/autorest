@@ -1,6 +1,30 @@
 # Change Log - @azure-tools/openapi
 
-This log was last generated on Wed, 08 Sep 2021 15:39:22 GMT and should not be manually modified.
+This log was last generated on Tue, 15 Mar 2022 16:00:38 GMT and should not be manually modified.
+
+## 3.3.0
+Tue, 15 Mar 2022 16:00:38 GMT
+
+### Minor changes
+
+- Add workspace heplper to navigate across multiple files
+- Added `HttpMethod` enum
+- Add `/v2` scope to load OpenAPI2 schema types.
+- Update OpenAPI 3.0 types to be more accurate.
+
+## 3.2.3
+Wed, 12 Jan 2022 22:31:57 GMT
+
+### Patches
+
+- Added `isExtension` util function.
+
+## 3.2.2
+Fri, 19 Nov 2021 04:23:43 GMT
+
+### Patches
+
+- Tweak types for description next to parameter
 
 ## 3.2.1
 Wed, 08 Sep 2021 15:39:22 GMT

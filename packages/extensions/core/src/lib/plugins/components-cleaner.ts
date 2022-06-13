@@ -3,6 +3,7 @@
  * Licensed under the MIT License.See License.txt in the project root for license information.
  * --------------------------------------------------------------------------------------------*/
 
+import { arrayify } from "@autorest/common";
 import {
   AnyObject,
   DataHandle,
@@ -54,14 +55,13 @@ export class ComponentsCleaner extends Transformer<any, oai.Model> {
       switch (key) {
         case "components":
           {
-            const components =
-              <oai.Components>targetParent.components || this.newObject(targetParent, "components", pointer);
+            const components = targetParent.components || this.newObject(targetParent, "components", pointer);
             this.visitComponents(components, children);
           }
           break;
 
         default:
-          this.clone(targetParent, key, pointer, value);
+          this.clone(targetParent, key as any, pointer, value);
           break;
       }
     }
@@ -218,20 +218,27 @@ class UnsuedComponentFinder {
   private checkRef(
     containerType: ComponentType,
     currentComponentUid: string,
-    component: any,
+    component: oai3.Schema,
     prop: "allOf" | "anyOf" | "oneOf" | "not",
   ) {
-    if (component[prop]?.$ref) {
-      const refParts = component[prop].$ref.split("/");
-      const componentRefUid = refParts.pop();
-      const refType = refParts.pop() as keyof ComponentTracker;
-      if (
-        this.componentsToKeep[refType].has(componentRefUid) &&
-        !this.componentsToKeep[containerType].has(currentComponentUid)
-      ) {
-        this.componentsToKeep[containerType].add(currentComponentUid);
-        this.crawlObject(component);
-        return true;
+    const items = component[prop];
+    if (items === undefined) {
+      return;
+    }
+
+    for (const item of arrayify(items)) {
+      if ("$ref" in item) {
+        const refParts = item.$ref.split("/");
+        const componentRefUid = refParts.pop();
+        const refType = refParts.pop() as keyof ComponentTracker;
+        if (
+          this.componentsToKeep[refType].has(componentRefUid as string) &&
+          !this.componentsToKeep[containerType].has(currentComponentUid)
+        ) {
+          this.componentsToKeep[containerType].add(currentComponentUid);
+          this.crawlObject(component);
+          return true;
+        }
       }
     }
     return false;

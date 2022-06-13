@@ -1,6 +1,27 @@
 # Change Log - @azure-tools/codegen
 
-This log was last generated on Wed, 08 Sep 2021 15:39:22 GMT and should not be manually modified.
+This log was last generated on Tue, 15 Mar 2022 16:00:38 GMT and should not be manually modified.
+
+## 2.9.1
+Tue, 15 Mar 2022 16:00:38 GMT
+
+### Patches
+
+- Bump `semver` dependency
+
+## 2.9.0
+Fri, 19 Nov 2021 04:23:42 GMT
+
+### Minor changes
+
+- **Removed** `shadow` and replace with `shadowPosition`
+
+## 2.8.0
+Thu, 14 Oct 2021 23:03:29 GMT
+
+### Minor changes
+
+- **Removed** Array and String extension methods(`.last`, `.captialize`, etc.) causing polution and conflicts.
 
 ## 2.7.0
 Wed, 08 Sep 2021 15:39:22 GMT

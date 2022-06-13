@@ -14,7 +14,7 @@ class PreCheckerClient {
 
   static async create(spec: Model, config: ModelerFourOptions = {}): Promise<PreCheckerClient> {
     const { session, errors } = await createTestSessionFromModel<Model>({ modelerfour: config }, spec);
-    const prechecker = await new QualityPreChecker(session).init();
+    const prechecker = new QualityPreChecker(session);
     expect(errors.length).toBe(0);
 
     return new PreCheckerClient(prechecker.input, prechecker.process());
@@ -79,7 +79,7 @@ describe("Prechecker", () => {
     expect(schemas["SiblingSchema"]).toBeUndefined();
     expect(schemas["MainSchema"]).not.toBeUndefined();
     const mainSchema: Schema = schemas["MainSchema"] as any;
-    expect(mainSchema.properties?.name.type).toEqual("string");
+    expect((mainSchema.properties?.name as any).type).toEqual("string");
   });
 
   describe("Remove child types with no additional properties", () => {
@@ -127,6 +127,56 @@ describe("Prechecker", () => {
       const foo = schemas["Foo"] as any;
       expect(foo).not.toBeUndefined();
       expect(foo.properties.child.$ref).toEqual("#/components/schemas/ParentSchema");
+    });
+  });
+
+  describe("Validate allOf schemas are the same types", () => {
+    let spec: any;
+
+    beforeEach(() => {
+      spec = createTestSpec();
+    });
+
+    it("Log error if allOf is string and base is object", async () => {
+      addSchema(
+        spec,
+        "ChildSchema",
+        {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+          allOf: [{ $ref: "#/components/schemas/StringSchema" }],
+        },
+        { name: "ChildSchema" },
+      );
+
+      addSchema(
+        spec,
+        "StringSchema",
+        {
+          type: "string",
+        },
+        { name: "StringSchema" },
+      );
+
+      const { session, errors } = await createTestSessionFromModel<Model>({}, spec);
+      const prechecker = new QualityPreChecker(session);
+      prechecker.process();
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toEqual({
+        Channel: "error",
+        Details: undefined,
+        Key: ["PreCheck", "AllOfTypeDifferent"],
+        Text: [
+          "Schema 'ChildSchema' has an allOf reference to 'StringSchema' but those schema have different types:",
+          "  - ChildSchema: object",
+          "  - StringSchema: string",
+        ].join("\n"),
+        Source: [
+          { Position: { path: ["components", "schemas", "ChildSchema", "allOf", 0] }, document: "openapi-3.json" },
+        ],
+      });
     });
   });
 });

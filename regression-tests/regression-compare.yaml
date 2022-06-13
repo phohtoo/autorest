@@ -40,7 +40,7 @@ specs:
       - httpInfrastructure.json
       - httpInfrastructure.quirks.json
       - lro.json
-      # - media_types.json https://github.com/Azure/autorest/issues/4246
+      - media_types.json
       - model-flattening.json
       - multiapi-v1.json
       - multiapi-v2.json
@@ -62,27 +62,31 @@ languages:
   - language: python
     outputPath: ./output/python
     oldArgs:
-      - --version:3.3.2
-      - --use:@autorest/modelerfour@4.18.4
-      - --use:@autorest/python@5.7.0
+      - --version:3.6.2
+      - --use:@autorest/modelerfour@4.22.3
+      - --use:@autorest/python@5.12.0
       - --modelerfour.treat-type-object-as-anything
+      - --modelerfour.legacy-request-body
+
     newArgs:
       - --version:../packages/extensions/core
       - --use:../packages/extensions/modelerfour
-      - --use:@autorest/python@5.7.0
+      - --use:@autorest/python@5.12.0
       - --modelerfour.treat-type-object-as-anything
-      - --modelerfour.seal-single-value-enum-by-default
+      - --modelerfour.legacy-request-body
 
   - language: typescript
     outputPath: ./output/typescript
     oldArgs:
       - --v3
-      - --version:3.3.2
-      - --use:@autorest/modelerfour@4.18.4
+      - --version:3.6.2
+      - --use:@autorest/modelerfour@4.22.3
       - --modelerfour.treat-type-object-as-anything
       - --package-name:test-package
       - --title:TestClient
-      - --use:@autorest/typescript@6.0.0-beta.5
+      - --use:@autorest/typescript@6.0.0-beta.13
+      - --modelerfour.legacy-request-body
+
     newArgs:
       - --v3
       - --version:../packages/extensions/core
@@ -90,5 +94,5 @@ languages:
       - --modelerfour.treat-type-object-as-anything
       - --package-name:test-package
       - --title:TestClient
-      - --modelerfour.seal-single-value-enum-by-default
-      - --use:@autorest/typescript@6.0.0-beta.5
+      - --use:@autorest/typescript@6.0.0-beta.13
+      - --modelerfour.legacy-request-body

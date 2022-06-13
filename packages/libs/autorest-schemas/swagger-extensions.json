@@ -100,8 +100,7 @@
         },
         "version": {
           "type": "string",
-          "description": "A semantic version number of the API.",
-          "minLength": 1
+          "description": "A semantic version number of the API."
         },
         "description": {
           "type": "string",
@@ -1617,7 +1616,7 @@
     },
     "xmsEnum": {
       "type": "object",
-      "required": ["name"],
+      "required": [],
       "properties": {
         "name": {
           "type": "string"
@@ -1749,9 +1748,9 @@
       "type": "object",
       "properties": {
         "final-state-via": {
-          "description": "How to determine the final state of the operation. Possible Values:\n- `azure-async-operation` - poll until terminal state, the final response will be available at the uri pointed to by the header `Azure-AsyncOperation`\n- `location`  - poll until terminal state, the final response will be available at the uri pointed to by the header `Location`\n- `original-uri` - poll until terminal state, the final response will be available via GET at the original resource URI. Very common for PUT operations",
+          "description": "How to determine the final state of the operation. Possible Values:\n- `azure-async-operation` - poll until terminal state, the final response will be available at the uri pointed to by the header `Azure-AsyncOperation`\n- `location`  - poll until terminal state, the final response will be available at the uri pointed to by the header `Location`\n- `operation-location` - poll until terminal state, the final response will be available at the uri pointed to by the header `Operation-Location`",
           "type": "string",
-          "enum": ["azure-async-operation", "location", "original-uri"]
+          "enum": ["azure-async-operation", "location", "original-uri", "operation-location"]
         }
       },
       "required": ["final-state-via"]
@@ -1853,7 +1852,7 @@
           "$ref": "#/definitions/jsonReference"
         },
         "else": {
-          "$ref": "https://raw.githubusercontent.com/Azure/autorest/master/schema/example-schema.json#"
+          "$ref": "https://raw.githubusercontent.com/Azure/autorest/main/packages/libs/autorest-schemas/example-schema.json#"
         }
       }
     }

@@ -941,7 +941,7 @@ export class EnglishPluralizationService {
     const de = deconstruct(word);
 
     // singularize the last word only
-    de[de.length - 1] = this.capitalize(de.last, (w) => this.internalSingularize(w));
+    de[de.length - 1] = this.capitalize(de[de.length - 1], (w) => this.internalSingularize(w));
 
     // return the pascal cased whole thing.
     return pascalCase(de);
@@ -1188,7 +1188,7 @@ export class EnglishPluralizationService {
       if (result.length === 0) {
         return result;
       }
-      return result.charAt(0).toUpperCase() + result.substr(1);
+      return result.charAt(0).toUpperCase() + result.slice(1);
     } else {
       return result;
     }
@@ -1204,8 +1204,8 @@ export class EnglishPluralizationService {
     // use the last space to separate the words
     const lastSpaceIndex = word.lastIndexOf(" ");
     return {
-      prefixWord: word.substr(0, lastSpaceIndex + 1),
-      suffixWord: word.substr(lastSpaceIndex + 1),
+      prefixWord: word.slice(0, lastSpaceIndex + 1),
+      suffixWord: word.slice(lastSpaceIndex + 1),
     };
     //
   }

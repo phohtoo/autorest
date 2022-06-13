@@ -1,6 +1,7 @@
 import { Languages } from "@autorest/codemodel";
 import { Session } from "@autorest/extension-base";
 import { removeSequentialDuplicates, fixLeadingNumber, deconstruct, Style, Styler } from "@azure-tools/codegen";
+import { last } from "lodash";
 
 export function getNameOptions(typeName: string, components: Array<string>) {
   const result = new Set<string>();
@@ -14,7 +15,8 @@ export function getNameOptions(typeName: string, components: Array<string>) {
   // add a second-to-last-ditch option as <typename>.<name>
   result.add(
     Style.pascal([
-      ...removeSequentialDuplicates([...fixLeadingNumber(deconstruct(typeName)), ...deconstruct(components.last)]),
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      ...removeSequentialDuplicates([...fixLeadingNumber(deconstruct(typeName)), ...deconstruct(last(components)!)]),
     ]),
   );
   return [...result.values()];
@@ -26,9 +28,14 @@ interface SetNameOptions {
    * @example "FooBarBarSomething" -> "FooBarSomething"
    */
   removeDuplicates?: boolean;
+
+  /**
+   * Error message if a name is empty.
+   */
+  nameEmptyErrorMessage?: string;
 }
 
-const setNameDefaultOptions: SetNameOptions = Object.freeze({
+const setNameDefaultOptions = Object.freeze({
   removeDuplicates: true,
 });
 
@@ -36,32 +43,43 @@ export interface Nameable {
   language: Languages;
 }
 
-export function setName(
-  thing: Nameable,
-  styler: Styler,
-  defaultValue: string,
-  overrides: Record<string, string>,
-  options?: SetNameOptions,
-) {
-  setNameAllowEmpty(thing, styler, defaultValue, overrides, options);
-  if (!thing.language.default.name) {
-    throw new Error("Name is empty!");
+function getNameEmptyError(thing: Nameable): string {
+  if (thing.language.default.serializedName) {
+    return `Name for '${thing.constructor.name}' with serializedName '${thing.language.default.serializedName}' cannot be empty.`;
   }
+  return `Name for '${thing.constructor.name}' cannot be empty.`;
 }
 
-export function setNameAllowEmpty(
-  thing: Nameable,
-  styler: Styler,
-  defaultValue: string,
-  overrides: Record<string, string>,
-  options?: SetNameOptions,
-) {
-  options = { ...setNameDefaultOptions, ...options };
-  thing.language.default.name = styler(
-    defaultValue && isUnassigned(thing.language.default.name) ? defaultValue : thing.language.default.name,
-    options.removeDuplicates,
-    overrides,
-  );
+export class NamingService {
+  public constructor(private session: Session<unknown>) {}
+
+  public setName(
+    thing: Nameable,
+    styler: Styler,
+    defaultValue: string,
+    overrides: Record<string, string>,
+    options?: SetNameOptions,
+  ) {
+    this.setNameAllowEmpty(thing, styler, defaultValue, overrides, options);
+    if (!thing.language.default.name) {
+      this.session.error(options?.nameEmptyErrorMessage ?? getNameEmptyError(thing), ["Prenamer", "NameEmpty"], thing);
+    }
+  }
+
+  public setNameAllowEmpty(
+    thing: Nameable,
+    styler: Styler,
+    defaultValue: string,
+    overrides: Record<string, string>,
+    options?: SetNameOptions,
+  ) {
+    options = { ...setNameDefaultOptions, ...options };
+    thing.language.default.name = styler(
+      defaultValue && isUnassigned(thing.language.default.name) ? defaultValue : thing.language.default.name,
+      options.removeDuplicates,
+      overrides,
+    );
+  }
 }
 
 export function isUnassigned(value: string) {

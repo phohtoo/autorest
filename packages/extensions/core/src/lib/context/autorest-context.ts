@@ -17,6 +17,7 @@ import {
   AutorestConfiguration,
   arrayOf,
   extendAutorestConfiguration,
+  getLogLevel,
 } from "@autorest/configuration";
 
 import { DataStore, CachingFileSystem } from "@azure-tools/datastore";
@@ -32,7 +33,7 @@ import { MessageEmitter } from "./message-emitter";
 export class AutorestContext implements IAutorestLogger {
   public config: AutorestConfiguration;
   public configFileFolderUri: string;
-  private logger: AutorestLogger;
+  public logger: AutorestLogger;
   private originalLogger: AutorestLogger;
 
   public constructor(
@@ -55,6 +56,9 @@ export class AutorestContext implements IAutorestLogger {
     this.configFileFolderUri = config.configFileFolderUri;
   }
 
+  public get pluginName() {
+    return this.plugin?.name;
+  }
   /**
    * @deprecated Use .config.raw instead. Keeping this for backward compatibility in the `autorest` module.
    */
@@ -87,7 +91,15 @@ export class AutorestContext implements IAutorestLogger {
   }
 
   public log(log: LogInfo) {
-    this.logger.log(log);
+    this.logger.log({
+      pluginName: this.plugin?.name,
+      extensionName: this.plugin?.extension?.extensionName,
+      ...log,
+    });
+  }
+
+  public startProgress(initialName?: string) {
+    return this.logger.startProgress(initialName);
   }
 
   public get diagnostics() {
@@ -230,6 +242,17 @@ export class AutorestContext implements IAutorestLogger {
     }
   }
 
+  public getContextForPlugin(plugin: PipelinePluginDefinition) {
+    return new AutorestContext(
+      this.config,
+      this.fileSystem,
+      this.messageEmitter,
+      this.originalLogger,
+      this.stats,
+      plugin,
+    );
+  }
+
   /**
    * Returns a new Autorest context with the configuration extended with the provided configurations.
    * @param overrides List of configs to override
@@ -249,10 +272,6 @@ export class AutorestContext implements IAutorestLogger {
   public protectFiles(filename: string) {
     this.messageEmitter.ProtectFile.Dispatch(filename);
   }
-}
-
-export function getLogLevel(config: AutorestNormalizedConfiguration): LogLevel {
-  return config.debug ? "debug" : config.verbose ? "verbose" : config.level ?? "information";
 }
 
 export function getLogSuppressions(config: AutorestConfiguration): LogSuppression[] {
