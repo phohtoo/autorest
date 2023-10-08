@@ -26,6 +26,7 @@ The following documents describes AutoRest specific vendor extensions for [OpenA
 - [x-ms-long-running-operation](#x-ms-long-running-operation) - indicates that the operation implemented Long Running Operation pattern as defined by the [Resource Manager API](https://msdn.microsoft.com/en-us/library/azure/dn790568.aspx).
 - [x-nullable](#x-nullable) - when `true`, specifies that `null` is a valid value for the associated schema
 - [x-ms-header-collection-prefix](#x-ms-header-collection-prefix) - Handle collections of arbitrary headers by distinguishing them with a specified prefix.
+- [x-ms-internal](#x-ms-internal) - allow specifc operations not be exposed to users in generated client
 
 ### Microsoft Azure Extensions (available in most generators only when using `--azure-arm`)
 
@@ -104,7 +105,7 @@ In C# and Java, an enum type is generated and is declared as the type of the rel
 
 | Field Name    |                          Type                           | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------------- | :-----------------------------------------------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| name          |                        `string`                         | **Required**. Specifies the name for the Enum.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| name          |                        `string`                         | **Optional**. Specifies the name for the Enum.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | modelAsString |                        `boolean`                        | **Default: true** When set to `true` the enum will be modeled as a string. No validation will happen. When set to `false`, it will be modeled as an enum if that language supports enums. Validation will happen, irrespective of support of enums in that language.                                                                                                                                                                                                                                                                                  |
 | values        | `[{ value: any, description?: string, name?: string }]` | **Default: undefined** When set, this will override the values specified with `enum`, while also enabling further customization. We recommend still specifying `enum` as a fallback for consumers that don't understand `x-ms-enum`. Each item in `x-ms-enum` corresponds to an enum item. Property `value` is mandatory and corresponds to the value one would also have specified using `enum`. Properties `description` and `name` are optional. `name` allows overriding the name of the enum value that would usually be derived from the value. |
 
@@ -1082,14 +1083,15 @@ Some requests like creating/deleting a resource cannot be carried out immediatel
 
 When `x-ms-long-running-operation-options` is specified, there should also be a `x-ms-long-running-operation: true` specified.
 
-See [Azure RPC Spec](https://github.com/Azure/azure-resource-manager-rpc/blob/master/v1.0/Addendum.md#asynchronous-operations) for asynchronous operation notes.
-
 **You probably don't need to use this option if you follow ARM guidelines**. This option is designed for cases where the server do NOT follow ARM, and we need to guide the runtime through a peculiar flow.
 
 **Schema**:
 Field Name | Type | Description
 ---|:---:|---
-final-state-via | `string` - one of `azure-async-operation` or `location` or `original-uri` or `operation-location` | `final-state-via` SHOULD BE one of
+final-state-via | `string` - one of `azure-async-operation` or `location` or `original-uri` or `operation-location` | see below
+final-state-schema | A `ref` to the schema of the final result | For languages that make this the result of the LRO
+
+`final-state-via` SHOULD BE one of
 
 - `azure-async-operation` - poll until terminal state, skip any final GET on Location or Origin-URI and use the final response at the uri pointed to by the header `Azure-AsyncOperation`.
 - `location` - poll until terminal state, if the initial response had a `Location` header, a final GET will be done. Default behavior for POST operation.
@@ -1097,6 +1099,8 @@ final-state-via | `string` - one of `azure-async-operation` or `location` or `or
 - `operation-location` - poll until terminal state, skip any final GET on Location or Origin-URI and use the final response at the uri pointed to by the header `Operation-Location`
 
 The polling mechanism in itself remains unchanged, the only impact of this option could be to do an additional final GET, or skip a final GET.
+
+The `final-state-schema` can be used to specify the schema of the response of whichever means is indicated in `final-state-via` for obtaining the final result.
 
 **Parent element**: [Operation Object](https://github.com/swagger-api/swagger-spec/blob/master/versions/2.0.md#operationObject)
 
@@ -1109,9 +1113,10 @@ The polling mechanism in itself remains unchanged, the only impact of this optio
       "operationId": "products_create",
       "x-ms-long-running-operation": true,
       "x-ms-long-running-operation-options" : {
-          "final-state-via" : "location"
+          "final-state-via" : "location",
+          "final-state-schema": "#/definitions/Product"
       },
-      "description": "A pageable list of Products."
+      "description": "Create a Product."
     }
   }
 }
@@ -1279,37 +1284,31 @@ Sub-resources are specified in the same manner as their parent resource but with
 }
 ```
 
-**Example (preferred)**: An `arm-id` field with no additional information about what kind of resource it must refer to, referring to the common type.
+**Example**: An `arm-id` field in a parameter.
+
+```json5
+"parameters": [
+  {
+    "name": "scope",
+    "in": "path",
+    "required": true,
+    "type": "string",
+    "format": "arm-id",
+    "x-ms-skip-url-encoding": true
+  },
+  ...
+]
+```
+
+**Example**: An `arm-id` field that can refer to any ARM resource ID.
 
 ```json5
 "MyExampleType": {
   "properties": {
     "id": {
-      "$ref": "../../../../../common-types/resource-management/v2/types.json#/definitions/ArmId",
+      "type": "string",
+      "format": "arm-id"
     }
-  }
-}
-```
-
-**Example (preferred)**: An `arm-id` field that must refer to a virtual network, via a referenced definition
-
-```json5
-"MyExampleType": {
-  "properties": {
-    "vnetId": {
-      "$ref": "#/definitions/VNetId",
-    }
-  }
-},
-"VNetId": {
-  "type": "string",
-  "format": "arm-id",
-  "x-ms-arm-id-details": {
-    "allowedResources": [
-      {
-        "type": "Microsoft.Network/virtualNetworks"
-      }
-    ]
   }
 }
 ```
@@ -1478,6 +1477,27 @@ headers:
 ```
 
 What is returned to users is just `key: value`.
+
+## x-ms-internal
+
+When an operation contains this extension, it will be generated but not be exposed to user in generated client. This extension is always used in situation when an operation needs to be wrapped by manual customization code.
+
+**Schema**:
+`true|false`
+
+**Example**:
+
+```json5
+"paths": {
+  "/test": {
+    "put": {
+      "operationId": "test_put",
+      "x-ms-internal": true,
+      "description": "This operation will not be exposed to user in client"
+    }
+  }
+}
+```
 
 # Metadata Extensions
 

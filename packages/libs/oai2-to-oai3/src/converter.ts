@@ -307,7 +307,7 @@ export class Oai2ToOai3 {
     }
   }
 
-  private isTargetReference<I, T>(
+  private isTargetReference<I extends {}, T extends {}>(
     target: MappingTreeObject<Refable<T>>,
     value: Refable<I>,
   ): target is MappingTreeObject<PathReference> {
@@ -749,6 +749,17 @@ export class Oai2ToOai3 {
     switch (key) {
       case "x-ms-odata":
         target.__set__(key, { value: await this.convertReferenceToOai3(value), sourcePointer });
+        break;
+      case "x-ms-long-running-operation-options":
+        if (value["final-state-schema"]) {
+          const oai3Value = {
+            "final-state-via": value["final-state-via"],
+            "final-state-schema": await this.convertReferenceToOai3(value["final-state-schema"]),
+          };
+          target.__set__(key, { value: oai3Value, sourcePointer });
+        } else {
+          target.__set__(key, { value, sourcePointer });
+        }
         break;
       default:
         target.__set__(key, { value, sourcePointer });

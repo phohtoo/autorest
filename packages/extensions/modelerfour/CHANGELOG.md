@@ -1,6 +1,71 @@
 # Change Log - @autorest/modelerfour
 
-This log was last generated on Fri, 27 May 2022 15:55:11 GMT and should not be manually modified.
+This log was last generated on Fri, 26 May 2023 14:12:36 GMT and should not be manually modified.
+
+## 4.26.2
+Fri, 26 May 2023 14:12:36 GMT
+
+### Patches
+
+- Map `rfc7231` to `rfc1123` for date-time formats
+- Bypass autocorrect to type: object in some cases
+
+## 4.26.1
+Thu, 13 Apr 2023 04:20:09 GMT
+
+### Patches
+
+- Fix issue with multipart request body could cause circular reference
+
+## 4.26.0
+Wed, 07 Dec 2022 22:24:34 GMT
+
+### Minor changes
+
+- Support final-state-schema lro option
+
+### Patches
+
+- Update dependencies
+
+## 4.25.0
+Thu, 03 Nov 2022 18:44:18 GMT
+
+### Minor changes
+
+- Add support for specifying `api-version` parameter in the server variables
+
+## 4.24.3
+Thu, 22 Sep 2022 15:51:02 GMT
+
+### Patches
+
+- Fix duplicate $host when using {nextLink} param
+
+## 4.24.2
+Fri, 12 Aug 2022 19:53:22 GMT
+
+### Patches
+
+- Bump @autorest/codemodel with missing `ArmIdSchema` from yaml schema
+
+## 4.24.1
+Mon, 08 Aug 2022 16:48:55 GMT
+
+### Patches
+
+- Fix `format: arm-id` wasn't doing anything
+
+## 4.24.0
+Tue, 19 Jul 2022 15:09:55 GMT
+
+### Minor changes
+
+- Added support for `format:arm-id` creating a ]`ArmIdSchema` to represent Azure Resource Manager Resource Identifiers
+- Added: Include `externalDocs` information in codemodel
+- Treat `format: uri` as `format: url`
+- Errors emitted in 'modelerfour' step  will have sourcemap.
+- Improved 'name is empty' error to contain more information.
 
 ## 4.23.6
 Fri, 27 May 2022 15:55:11 GMT

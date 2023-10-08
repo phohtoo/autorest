@@ -1,6 +1,34 @@
 # Change Log - @autorest/codemodel
 
-This log was last generated on Wed, 16 Mar 2022 19:40:12 GMT and should not be manually modified.
+This log was last generated on Wed, 07 Dec 2022 22:24:34 GMT and should not be manually modified.
+
+## 4.19.3
+Wed, 07 Dec 2022 22:24:34 GMT
+
+### Patches
+
+- Update dependencies
+
+## 4.19.2
+Fri, 12 Aug 2022 19:53:22 GMT
+
+### Patches
+
+- Fix: missing `ArmIdSchema` from yaml schema
+
+## 4.19.1
+Mon, 08 Aug 2022 16:48:55 GMT
+
+### Patches
+
+- Missing `armIds` in schemas
+
+## 4.19.0
+Tue, 19 Jul 2022 15:09:55 GMT
+
+### Minor changes
+
+- Added `ArmIdSchema` to represent Azure Resource Manager Resource Identifiers
 
 ## 4.18.2
 Wed, 16 Mar 2022 19:40:12 GMT

@@ -1,6 +1,32 @@
 # Change Log - @autorest/common
 
-This log was last generated on Tue, 22 Mar 2022 16:33:04 GMT and should not be manually modified.
+This log was last generated on Thu, 13 Apr 2023 04:20:09 GMT and should not be manually modified.
+
+## 1.5.6
+Thu, 13 Apr 2023 04:20:09 GMT
+
+### Patches
+
+- Fix: Suppression of the same code for different area could conflict each other
+
+## 1.5.5
+Wed, 07 Dec 2022 22:24:34 GMT
+
+### Patches
+
+- Update dependencies
+
+## 1.5.4
+Fri, 19 Aug 2022 16:52:58 GMT
+
+### Patches
+
+- Fix suppression not working
+
+## 1.5.3
+Tue, 19 Jul 2022 15:09:55 GMT
+
+_Version update only_
 
 ## 1.5.2
 Tue, 22 Mar 2022 16:33:04 GMT

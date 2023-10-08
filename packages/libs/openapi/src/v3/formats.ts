@@ -30,6 +30,9 @@ export enum StringFormat {
   /** @description a A Date-Time as defined by date-time - RFC1123 */
   DateTimeRfc1123 = "date-time-rfc1123",
 
+  /** @description a A Date-Time as defined by date-time - RFC1123 */
+  DateTimeRfc7231 = "date-time-rfc7231",
+
   /** @description a duration of time (todo: RFC reference? ) */
   Duration = "duration",
 
@@ -39,8 +42,20 @@ export enum StringFormat {
   /** @description a base64url string of characters, represented as a byte array (see RFC 4648 ) */
   Base64Url = "base64url",
 
-  /** @description a string that should be an URL */
+  /**
+   * @description a string that should be an URI.
+   */
+  Uri = "uri",
+
+  /**
+   * @description a string that should be an URI. Alias of uri
+   */
   Url = "url",
+
+  /**
+   * Represent a Azure Resource Manager Resource ID.
+   */
+  ArmId = "arm-id",
 
   /** @description an encoded odata query string */
   OData = "odata-query",

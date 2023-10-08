@@ -123,6 +123,7 @@ export class Interpretations {
             return value;
 
           case StringFormat.DateTimeRfc1123:
+          case StringFormat.DateTimeRfc7231:
             // return this.parseDateTimeRfc1123Value(value);
             return value;
 
@@ -134,6 +135,7 @@ export class Interpretations {
             return value;
 
           case StringFormat.Url:
+          case StringFormat.Uri:
             return value;
 
           case StringFormat.Password:
@@ -165,7 +167,7 @@ export class Interpretations {
     }
   }
 
-  isApiVersionParameter(parameter: OpenAPI.Parameter): boolean {
+  isApiVersionParameter(parameter: OpenAPI.Parameter | OpenAPI.ServerVariable): boolean {
     // Always let x-ms-api-version override the check
     if (parameter["x-ms-api-version"] !== undefined) {
       return !!parameter["x-ms-api-version"] === true;
@@ -173,6 +175,7 @@ export class Interpretations {
 
     // It's an api-version parameter if it's a query param with an expected name
     return (
+      "in" in parameter &&
       parameter.in === ParameterLocation.Query &&
       !!apiVersionParameterNames.find((each) => each === parameter.name.toLowerCase())
     );
@@ -268,7 +271,8 @@ export class Interpretations {
     }
     return undefined;
   }
-  getApiVersionValues(node: OpenAPI.Schema | OpenAPI.HttpOperation | OpenAPI.PathItem): Array<string> {
+
+  getApiVersionValues(node: OpenAPI.Schema | OpenAPI.HttpOperation | OpenAPI.PathItem | OpenAPI.Info): Array<string> {
     if (node["x-ms-metadata"] && node["x-ms-metadata"]["apiVersions"]) {
       return [...new Set<string>((node["x-ms-metadata"]["apiVersions"] as any) ?? [])];
     }

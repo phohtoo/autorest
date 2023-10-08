@@ -1,6 +1,69 @@
 # Change Log - @autorest/core
 
-This log was last generated on Wed, 27 Apr 2022 18:53:11 GMT and should not be manually modified.
+This log was last generated on Mon, 31 Jul 2023 14:56:21 GMT and should not be manually modified.
+
+## 3.9.7
+Mon, 31 Jul 2023 14:56:21 GMT
+
+### Patches
+
+- Fix for final-state-schema with external ref
+
+## 3.9.6
+Fri, 26 May 2023 14:12:36 GMT
+
+### Patches
+
+- Update final-state-schema references in merger
+
+## 3.9.5
+Thu, 13 Apr 2023 04:20:09 GMT
+
+### Patches
+
+- Fix: Issue with discriminator mapping not working across files
+
+## 3.9.4
+Wed, 07 Dec 2022 22:24:34 GMT
+
+### Patches
+
+- Fix: ignore $ref in `x-` pointing to `x-` paths
+- Fix: Emitted artifact from csharp on windows use `\` which result in transform not running
+- Update dependencies
+
+## 3.9.3
+Wed, 19 Oct 2022 16:18:27 GMT
+
+### Patches
+
+- Update system requirement package to fix issue with resolving python on windows
+
+## 3.9.2
+Fri, 19 Aug 2022 16:52:58 GMT
+
+### Patches
+
+- Fix suppression not working
+
+## 3.9.1
+Wed, 27 Jul 2022 17:44:10 GMT
+
+### Patches
+
+- Fix `where-operation-match` built-in directive
+
+## 3.9.0
+Tue, 19 Jul 2022 15:09:55 GMT
+
+### Minor changes
+
+- `x-ms-examples` are loaded latter in the pipeline. This allow plugins to get the raw openapi specs right after load.
+- Enable identity sourcemap for extensions
+
+### Patches
+
+- Fix: `$ref` contains percent-encoding.
 
 ## 3.8.4
 Wed, 27 Apr 2022 18:53:11 GMT
@@ -8,7 +71,7 @@ Wed, 27 Apr 2022 18:53:11 GMT
 ### Patches
 
 - Fix issue with using $ref in responses inserterting $ref in the parent.
-- "Fix issue with `x-ms-client-name` on inline array type.
+- Fix issue with `x-ms-client-name` on inline array type.
 
 ## 3.8.3
 Tue, 22 Mar 2022 20:26:28 GMT
@@ -254,7 +317,7 @@ Fri, 09 Apr 2021 19:53:22 GMT
 
 ### Minor changes
 
-- **Added** Semantic validator plugin
+- **Added** Semantic validator plugin 
 - **Feature** Add sourcemap support for errors providing original location of problem
 - **Added** support for emitting statistics of the specs and resuting model
 
@@ -400,7 +463,7 @@ Tue, 4 Feb 2020 00:00:00 GMT
 
 - rebuild to pick up latest data-store to fix the caching filename size
 - OAI2-to-OAI3 converter update in perks.
-- TransformerViaPointer was turning null into {}
+- TransformerViaPointer was turning null into {} 
 - rebuild to fix NPM publishing problem.
 - remove additionalProperties: false so v2 generators don't choke.
 - rebuild to pick up perks change to fix multibyte utf8 over byte boundary problem

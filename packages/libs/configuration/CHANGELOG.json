@@ -2,6 +2,92 @@
   "name": "@autorest/configuration",
   "entries": [
     {
+      "version": "1.11.0",
+      "tag": "@autorest/configuration_v1.11.0",
+      "date": "Wed, 07 Dec 2022 22:24:34 GMT",
+      "comments": {
+        "minor": [
+          {
+            "comment": "Add @autorest/openapi-to-cadl plugin"
+          },
+          {
+            "comment": "Remove `--model-validator` flag to load oav as oav autorest plugin is not supported anymore"
+          }
+        ],
+        "patch": [
+          {
+            "comment": "Update dependencies"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@autorest/common\" from `~1.5.4` to `~1.5.5`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/datastore\" from `~4.7.0` to `~4.7.1`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/extension\" from `~3.6.0` to `~3.6.1`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/json\" from `~1.2.2` to `~1.2.3`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/yaml\" from `~1.1.0` to `~1.1.1`"
+          },
+          {
+            "comment": "Updating dependency \"@autorest/test-utils\" from `~0.5.2` to `~0.5.3`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.10.1",
+      "tag": "@autorest/configuration_v1.10.1",
+      "date": "Wed, 27 Jul 2022 17:44:10 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "Fix `where-operation-match` built-in directive"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.10.0",
+      "tag": "@autorest/configuration_v1.10.0",
+      "date": "Tue, 19 Jul 2022 15:09:55 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "**Bump** @autorest/java default version to 4.1.0"
+          },
+          {
+            "comment": "Fix loading markdown config starting with codeblock"
+          }
+        ],
+        "minor": [
+          {
+            "comment": "make Go v4 code generator the default for Go"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@autorest/common\" from `~1.5.2` to `~1.5.3`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/datastore\" from `~4.6.1` to `~4.7.0`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/extension\" from `~3.5.0` to `~3.6.0`"
+          },
+          {
+            "comment": "Updating dependency \"@autorest/test-utils\" from `~0.5.1` to `~0.5.2`"
+          }
+        ]
+      }
+    },
+    {
       "version": "1.9.2",
       "tag": "@autorest/configuration_v1.9.2",
       "date": "Thu, 31 Mar 2022 16:50:54 GMT",

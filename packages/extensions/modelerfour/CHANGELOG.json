@@ -2,6 +2,177 @@
   "name": "@autorest/modelerfour",
   "entries": [
     {
+      "version": "4.26.2",
+      "tag": "@autorest/modelerfour_v4.26.2",
+      "date": "Fri, 26 May 2023 14:12:36 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "Map `rfc7231` to `rfc1123` for date-time formats"
+          },
+          {
+            "comment": "Bypass autocorrect to type: object in some cases"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@autorest/extension-base\" from `~3.5.1` to `~3.5.2`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/openapi\" from `~3.4.1` to `~3.5.0`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "4.26.1",
+      "tag": "@autorest/modelerfour_v4.26.1",
+      "date": "Thu, 13 Apr 2023 04:20:09 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "Fix issue with multipart request body could cause circular reference"
+          }
+        ]
+      }
+    },
+    {
+      "version": "4.26.0",
+      "tag": "@autorest/modelerfour_v4.26.0",
+      "date": "Wed, 07 Dec 2022 22:24:34 GMT",
+      "comments": {
+        "minor": [
+          {
+            "comment": "Support final-state-schema lro option"
+          }
+        ],
+        "patch": [
+          {
+            "comment": "Update dependencies"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@autorest/codemodel\" from `~4.19.2` to `~4.19.3`"
+          },
+          {
+            "comment": "Updating dependency \"@autorest/extension-base\" from `~3.5.0` to `~3.5.1`"
+          },
+          {
+            "comment": "Updating dependency \"@autorest/test-utils\" from `~0.5.2` to `~0.5.3`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/codegen\" from `~2.9.1` to `~2.9.2`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/datastore\" from `~4.7.0` to `~4.7.1`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/openapi\" from `~3.4.0` to `~3.4.1`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "4.25.0",
+      "tag": "@autorest/modelerfour_v4.25.0",
+      "date": "Thu, 03 Nov 2022 18:44:18 GMT",
+      "comments": {
+        "minor": [
+          {
+            "comment": "Add support for specifying `api-version` parameter in the server variables"
+          }
+        ]
+      }
+    },
+    {
+      "version": "4.24.3",
+      "tag": "@autorest/modelerfour_v4.24.3",
+      "date": "Thu, 22 Sep 2022 15:51:02 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "Fix duplicate $host when using {nextLink} param"
+          }
+        ]
+      }
+    },
+    {
+      "version": "4.24.2",
+      "tag": "@autorest/modelerfour_v4.24.2",
+      "date": "Fri, 12 Aug 2022 19:53:22 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "Bump @autorest/codemodel with missing `ArmIdSchema` from yaml schema"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@autorest/codemodel\" from `~4.19.1` to `~4.19.2`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "4.24.1",
+      "tag": "@autorest/modelerfour_v4.24.1",
+      "date": "Mon, 08 Aug 2022 16:48:55 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "Fix `format: arm-id` wasn't doing anything"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@autorest/codemodel\" from `~4.19.0` to `~4.19.1`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "4.24.0",
+      "tag": "@autorest/modelerfour_v4.24.0",
+      "date": "Tue, 19 Jul 2022 15:09:55 GMT",
+      "comments": {
+        "minor": [
+          {
+            "comment": "Added support for `format:arm-id` creating a ]`ArmIdSchema` to represent Azure Resource Manager Resource Identifiers"
+          },
+          {
+            "comment": "Added: Include `externalDocs` information in codemodel"
+          },
+          {
+            "comment": "Treat `format: uri` as `format: url`"
+          },
+          {
+            "comment": "Errors emitted in 'modelerfour' step  will have sourcemap."
+          },
+          {
+            "comment": "Improved 'name is empty' error to contain more information."
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@autorest/codemodel\" from `~4.18.2` to `~4.19.0`"
+          },
+          {
+            "comment": "Updating dependency \"@autorest/extension-base\" from `~3.4.2` to `~3.5.0`"
+          },
+          {
+            "comment": "Updating dependency \"@autorest/test-utils\" from `~0.5.1` to `~0.5.2`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/datastore\" from `~4.6.1` to `~4.7.0`"
+          },
+          {
+            "comment": "Updating dependency \"@azure-tools/openapi\" from `~3.3.0` to `~3.4.0`"
+          }
+        ]
+      }
+    },
+    {
       "version": "4.23.6",
       "tag": "@autorest/modelerfour_v4.23.6",
       "date": "Fri, 27 May 2022 15:55:11 GMT",

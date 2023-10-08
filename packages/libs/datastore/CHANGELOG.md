@@ -1,6 +1,21 @@
 # Change Log - @azure-tools/datastore
 
-This log was last generated on Tue, 15 Mar 2022 16:00:38 GMT and should not be manually modified.
+This log was last generated on Wed, 07 Dec 2022 22:24:34 GMT and should not be manually modified.
+
+## 4.7.1
+Wed, 07 Dec 2022 22:24:34 GMT
+
+### Patches
+
+- Add `normalizePath` helper
+- Update dependencies
+
+## 4.7.0
+Tue, 19 Jul 2022 15:09:55 GMT
+
+### Minor changes
+
+- **Migrate** from jsonpath to jsonpath-plus
 
 ## 4.6.1
 Tue, 15 Mar 2022 16:00:38 GMT

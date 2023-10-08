@@ -1,7 +1,7 @@
 import { matches, PathPosition } from "@azure-tools/datastore";
 import { JsonPointerTokens } from "@azure-tools/json";
 import { arrayify } from "../utils";
-import { AutorestLogger, LogInfo, LogLevel } from "./types";
+import { LogInfo, LogLevel } from "./types";
 import { LoggerProcessor } from ".";
 
 export interface LogSuppression {
@@ -26,7 +26,7 @@ export class FilterLogger implements LoggerProcessor {
 
   public constructor(options: FilterLoggerOptions) {
     this.level = options.level;
-    this.suppressions = options.suppressions ?? [];
+    this.suppressions = options.suppressions?.map((x) => ({ ...x, code: x.code.toLowerCase() })) ?? [];
   }
 
   public process(log: LogInfo): LogInfo | undefined {
@@ -39,16 +39,17 @@ export class FilterLogger implements LoggerProcessor {
   private filterSuppressions(log: LogInfo): LogInfo | undefined {
     const hadSource = log.source && log.source.length > 0;
     let currentLog = log;
+    const key = log.code?.toLowerCase();
+
     // filter
     for (const sup of this.suppressions) {
       // matches key
-      const key = log.code?.toLowerCase();
       if (key && (key === sup.code || key.startsWith(`${sup.code}/`))) {
         // filter applicable sources
         if (log.source && hadSource) {
           currentLog = {
             ...currentLog,
-            source: log.source.filter(
+            source: currentLog.source?.filter(
               (s) => !this.matchesSourceFilter(s.document, (s.position as PathPosition).path, sup),
             ),
           };
@@ -57,9 +58,8 @@ export class FilterLogger implements LoggerProcessor {
         }
       }
     }
-
     // drop message if all source locations have been stripped
-    if (hadSource && log.source?.length === 0) {
+    if (hadSource && currentLog.source?.length === 0) {
       return undefined;
     }
 

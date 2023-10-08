@@ -352,6 +352,23 @@
         }
       ]
     },
+    "ArmIdSchema": {
+      "description": "a schema that represents a Uuid value",
+      "type": "object",
+      "properties": {},
+      "defaultProperties": [],
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "protocol",
+        "type"
+      ],
+      "allOf": [
+        {
+          "$ref": "./schemas.json#/definitions/PrimitiveSchema"
+        }
+      ]
+    },
     "ConditionalSchema": {
       "description": "a schema that represents a value dependent on another",
       "type": "object",
@@ -939,6 +956,13 @@
           "type": "array",
           "items": {
             "$ref": "./schemas.json#/definitions/UriSchema"
+          }
+        },
+        "armIds": {
+          "description": "an URI of some kind",
+          "type": "array",
+          "items": {
+            "$ref": "./schemas.json#/definitions/ArmIdSchema"
           }
         },
         "credentials": {

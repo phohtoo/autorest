@@ -57,6 +57,7 @@ import {
   TimeSchema,
   HttpMultipartRequest,
   AnyObjectSchema,
+  ArmIdSchema,
 } from "@autorest/codemodel";
 import { Session, Channel } from "@autorest/extension-base";
 import { fail, minimum, pascalCase, KnownMediaType, shadowPosition } from "@azure-tools/codegen";
@@ -72,9 +73,10 @@ import {
   MediaType,
   omitXDashProperties,
   OpenAPI3Document,
+  EnumStr,
 } from "@azure-tools/openapi";
 import * as OpenAPI from "@azure-tools/openapi";
-import { uniq, every } from "lodash";
+import { uniq, every, Dictionary } from "lodash";
 import { isDefined } from "../utils";
 import { BodyProcessor, KnownMediaTypeGroupItem, RequestBodyGroup } from "./body-processor";
 import { KnownSpecialHeaders } from "./constants";
@@ -300,11 +302,11 @@ export class ModelerFour {
     return this;
   }
 
-  private resolve<T>(item: Refable<T>): Dereferenced<T> {
+  private resolve<T extends {} | undefined>(item: Refable<T>): Dereferenced<T> {
     return dereference(this.input, item);
   }
 
-  private use<T, Q = void>(item: Refable<T> | undefined, action: (name: string, instance: T) => Q): Q {
+  private use<T extends {}, Q = void>(item: Refable<T | undefined>, action: (name: string, instance: T) => Q): Q {
     const i = dereference(this.input, item);
     if (i.instance) {
       return action(i.name, i.instance);
@@ -312,11 +314,11 @@ export class ModelerFour {
     throw new Error(`Unresolved item '${item}'`);
   }
 
-  resolveArray<T>(source: Array<Refable<T>> | undefined) {
+  resolveArray<T extends {}>(source: Array<Refable<T>> | undefined) {
     return (source ?? []).map((each) => dereference(this.input, each).instance);
   }
 
-  resolveDictionary<T>(source?: Record<string, Refable<T>>) {
+  resolveDictionary<T extends {}>(source?: Record<string, Refable<T>>) {
     return Object.entries(source ?? {})
       .map(([key, value]) => ({
         key,
@@ -394,6 +396,7 @@ export class ModelerFour {
       ),
     );
   }
+
   processStringSchema(name: string, schema: OpenAPI.Schema): StringSchema {
     return this.codeModel.schemas.add(
       new StringSchema(this.interpret.getName(name, schema), this.interpret.getDescription("", schema), {
@@ -411,6 +414,7 @@ export class ModelerFour {
       }),
     );
   }
+
   processCredentialSchema(name: string, schema: OpenAPI.Schema): CredentialSchema {
     return this.codeModel.schemas.add(
       new CredentialSchema(this.interpret.getName(name, schema), this.interpret.getDescription("", schema), {
@@ -445,6 +449,22 @@ export class ModelerFour {
       }),
     );
   }
+
+  processArmId(name: string, schema: OpenAPI.Schema): ArmIdSchema {
+    return this.codeModel.schemas.add(
+      new ArmIdSchema(this.interpret.getName(name, schema), this.interpret.getDescription("", schema), {
+        extensions: this.interpret.getExtensionProperties(schema),
+        summary: schema.title,
+        defaultValue: schema.default,
+        deprecated: this.interpret.getDeprecation(schema),
+        apiVersions: this.interpret.getApiVersions(schema),
+        example: this.interpret.getExample(schema),
+        externalDocs: this.interpret.getExternalDocs(schema),
+        serialization: this.interpret.getSerialization(schema),
+      }),
+    );
+  }
+
   processUuidSchema(name: string, schema: OpenAPI.Schema): UuidSchema {
     return this.codeModel.schemas.add(
       new UuidSchema(this.interpret.getName(name, schema), this.interpret.getDescription("", schema), {
@@ -484,7 +504,10 @@ export class ModelerFour {
         example: this.interpret.getExample(schema),
         externalDocs: this.interpret.getExternalDocs(schema),
         serialization: this.interpret.getSerialization(schema),
-        format: schema.format === StringFormat.DateTimeRfc1123 ? StringFormat.DateTimeRfc1123 : StringFormat.DateTime,
+        format:
+          schema.format === StringFormat.DateTimeRfc1123 || schema.format === StringFormat.DateTimeRfc7231
+            ? StringFormat.DateTimeRfc1123
+            : StringFormat.DateTime,
       }),
     );
   }
@@ -640,6 +663,7 @@ export class ModelerFour {
         return this.processUuidSchema("", schema);
 
       case StringFormat.Url:
+      case StringFormat.Uri:
         return this.processUriSchema("", schema);
 
       case StringFormat.Password:
@@ -1124,17 +1148,29 @@ export class ModelerFour {
         }
 
         if (schema.allOf || schema.anyOf || schema.oneOf) {
-          // if the model has properties, then we're going to assume they meant to say JsonType.object
-          // but we're going to warn them anyway.
-          this.session.warning(
-            `The schema '${
-              schema?.["x-ms-metadata"]?.name || name
-            }' with an undefined type and 'allOf'/'anyOf'/'oneOf' is a bit ambiguous. This has been auto-corrected to 'type:object'`,
-            ["Modeler", "MissingType"],
-            schema,
-          );
-          schema.type = OpenAPI.JsonType.Object;
-          break;
+          // The schema does not have properties or additionalProperties, but it does have allOf/anyOf/oneOf.
+          // The prior logic auto-corrected this to type: object, but that's not always appropriate.
+          // Check the child schemas and bypass the auto-correct if any are clearly not type: object.
+
+          // Return true if the schema has an explicit type that is not type: object.
+          const notTypeObject = (e: Refable<OpenAPI.Schema>): boolean => {
+            const s = this.resolve(e).instance;
+            return !!s.type && s.type !== OpenAPI.JsonType.Object;
+          };
+          let bypassAutoCorrect = schema.allOf && schema.allOf.some(notTypeObject);
+          bypassAutoCorrect ||= schema.anyOf && schema.anyOf.some(notTypeObject);
+          bypassAutoCorrect ||= schema.oneOf && schema.oneOf.some(notTypeObject);
+          if (!bypassAutoCorrect) {
+            this.session.warning(
+              `The schema '${
+                schema?.["x-ms-metadata"]?.name || name
+              }' with an undefined type and 'allOf'/'anyOf'/'oneOf' is a bit ambiguous. This has been auto-corrected to 'type:object'`,
+              ["Modeler", "MissingType"],
+              schema,
+            );
+            schema.type = OpenAPI.JsonType.Object;
+            break;
+          }
         }
 
         {
@@ -1273,7 +1309,10 @@ export class ModelerFour {
             return this.processUuidSchema(name, schema);
 
           case StringFormat.Url:
+          case StringFormat.Uri:
             return this.processUriSchema(name, schema);
+          case StringFormat.ArmId:
+            return this.processArmId(name, schema);
 
           case StringFormat.Password:
             return this.processCredentialSchema(name, schema);
@@ -1578,7 +1617,6 @@ export class ModelerFour {
                 this.interpret.getDescription(pType.language.default.description, pSchema),
               pType,
               {
-                schema: pType,
                 required:
                   requestSchema.required && requestSchema.required.indexOf(propertyName) > -1 ? true : undefined,
                 implementation: ImplementationLocation.Method,
@@ -1713,13 +1751,13 @@ export class ModelerFour {
       case 1:
         {
           const server = servers[0];
-          // trim extraneous slash .
-          const uri = server.url.endsWith("/") && path.startsWith("/") ? server.url.slice(0, -1) : server.url;
-
+          // trim extraneous slash . if the path starts with `/` or start with a path parameter.
+          const uri =
+            server.url.endsWith("/") && (path[0] === "/" || path[0] === "{") ? server.url.slice(0, -1) : server.url;
           if (server.variables === undefined || Object.keys(server.variables).length === 0) {
             // scenario 1 : single static value
 
-            // check if we have the $host parameter foor this uri yet.
+            // check if we have the $host parameter for this uri yet.
             operation.addParameter(
               this.codeModel.addGlobalParameter(
                 (each) => each.language.default.name === "$host" && each.clientDefaultValue === uri,
@@ -1770,30 +1808,35 @@ export class ModelerFour {
               const originalParameter = this.resolve<OpenAPI.Parameter>(variable["x-ms-original"]);
 
               if (!p) {
-                p = new Parameter(variableName, variable.description || `${variableName} - server parameter`, sch, {
-                  required: true,
-                  implementation,
-                  protocol: {
-                    http: new HttpParameter(ParameterLocation.Uri),
-                  },
-                  language: {
-                    default: {
-                      serializedName: variableName,
+                if (this.apiVersionMode !== "none" && this.interpret.isApiVersionParameter(variable)) {
+                  this.processApiVersionParameter(variable, operation, pathItem);
+                } else {
+                  p = new Parameter(variableName, variable.description || `${variableName} - server parameter`, sch, {
+                    required: true,
+                    implementation,
+                    protocol: {
+                      http: new HttpParameter(ParameterLocation.Uri),
                     },
-                  },
-                  extensions: {
-                    ...this.interpret.getExtensionProperties(variable),
-                    "x-ms-priority": originalParameter?.instance?.["x-ms-priority"],
-                  },
-                  clientDefaultValue: clientdefault,
-                });
-                if (implementation === ImplementationLocation.Client) {
-                  // add it to the global parameter list (if it's a client parameter)
-                  this.codeModel.addGlobalParameter(p);
+                    language: {
+                      default: {
+                        serializedName: variableName,
+                      },
+                    },
+                    extensions: {
+                      ...this.interpret.getExtensionProperties(variable),
+                      "x-ms-priority": originalParameter?.instance?.["x-ms-priority"],
+                    },
+                    clientDefaultValue: clientdefault,
+                  });
+                  if (implementation === ImplementationLocation.Client) {
+                    // add it to the global parameter list (if it's a client parameter)
+                    this.codeModel.addGlobalParameter(p);
+                  }
+                  operation.addParameter(p);
                 }
+              } else {
+                operation.addParameter(p);
               }
-              // add the parameter to the operaiton
-              operation.addParameter(p);
             }
             // and update the path for the operation. (copy the template onto the path)
             // path = `${uri}${path}`;
@@ -1854,6 +1897,14 @@ export class ModelerFour {
     return baseUri;
   }
 
+  private getParameterLocation(parameter: OpenAPI.Parameter | OpenAPI.ServerVariable): EnumStr<ParameterLocation> {
+    if (isParameter(parameter)) {
+      return parameter.in;
+    }
+
+    return "uri";
+  }
+
   private getServerVariableSchema(variableName: string, variable: OpenAPI.ServerVariable) {
     if (variable.enum) {
       return this.processChoiceSchema(variableName, <OpenAPI.Schema>{
@@ -1876,20 +1927,20 @@ export class ModelerFour {
   }
 
   addApiVersionParameter(
-    parameter: OpenAPI.Parameter,
+    parameter: OpenAPI.Parameter | OpenAPI.ServerVariable,
     operation: Operation,
-    pathItem: OpenAPI.PathItem,
     apiVersionParameterSchema: ChoiceSchema | ConstantSchema,
   ) {
-    const p = new Parameter("ApiVersion", "Api Version", apiVersionParameterSchema, {
-      required: parameter.required ? true : undefined,
+    const parameterName = (parameter as any).name ?? (parameter as any)["x-name"];
+    const p = new Parameter(parameterName, "Api Version", apiVersionParameterSchema, {
+      required: true, // ApiVersion parameter is always required
       origin: "modelerfour:synthesized/api-version",
       protocol: {
-        http: new HttpParameter(ParameterLocation.Query),
+        http: new HttpParameter(this.getParameterLocation(parameter)),
       },
       language: {
         default: {
-          serializedName: parameter.name,
+          serializedName: parameterName,
         },
       },
     });
@@ -1901,7 +1952,10 @@ export class ModelerFour {
 
       case "client":
         // eslint-disable-next-line no-case-declarations
-        let pp = this.codeModel.findGlobalParameter((each) => each.language.default.name === "ApiVersion");
+        let pp = this.codeModel.findGlobalParameter(
+          (each) =>
+            each.language.default.name === "ApiVersion" || each.language.default.name === p.language.default.name,
+        );
         if (!pp) {
           p.implementation = ImplementationLocation.Client;
           pp = this.codeModel.addGlobalParameter(p);
@@ -1912,9 +1966,9 @@ export class ModelerFour {
   }
 
   processChoiceApiVersionParameter(
-    parameter: OpenAPI.Parameter,
+    parameter: OpenAPI.Parameter | OpenAPI.ServerVariable,
     operation: Operation,
-    pathItem: OpenAPI.PathItem,
+    pathItem: OpenAPI.PathItem | undefined,
     apiversions: Array<string>,
   ) {
     const apiVersionChoice = this.codeModel.schemas.add(
@@ -1924,14 +1978,14 @@ export class ModelerFour {
       }),
     );
 
-    return this.addApiVersionParameter(parameter, operation, pathItem, apiVersionChoice);
+    return this.addApiVersionParameter(parameter, operation, apiVersionChoice);
   }
 
   processConstantApiVersionParameter(
-    parameter: OpenAPI.Parameter,
+    parameter: OpenAPI.Parameter | OpenAPI.ServerVariable,
     operation: Operation,
-    pathItem: OpenAPI.PathItem,
-    apiversions: Array<string>,
+    pathItem: OpenAPI.PathItem | undefined,
+    apiversions: string[],
   ) {
     if (apiversions.length > 1) {
       throw new Error(
@@ -1945,11 +1999,15 @@ export class ModelerFour {
       }),
     );
 
-    return this.addApiVersionParameter(parameter, operation, pathItem, apiVersionConst);
+    return this.addApiVersionParameter(parameter, operation, apiVersionConst);
   }
 
-  processApiVersionParameter(parameter: OpenAPI.Parameter, operation: Operation, pathItem: OpenAPI.PathItem) {
-    const apiversions = this.interpret.getApiVersionValues(pathItem);
+  processApiVersionParameter(
+    parameter: OpenAPI.Parameter | OpenAPI.ServerVariable,
+    operation: Operation,
+    pathItem?: OpenAPI.PathItem,
+  ) {
+    const apiversions = this.interpret.getApiVersionValues(pathItem ?? this.input.info);
     if (apiversions.length === 0) {
       // !!!
       throw new Error(
@@ -2102,8 +2160,27 @@ export class ModelerFour {
   processResponses(httpOperation: OpenAPI.HttpOperation, operation: Operation) {
     const acceptTypes = new Set<string>();
 
+    const modelerResponses = httpOperation.responses;
+
+    // If the operation has final-state-schema lro option, add a "200" response if there isn't one already
+    if (httpOperation["x-ms-long-running-operation-options"]?.["final-state-schema"]) {
+      const finalStateSchema = httpOperation["x-ms-long-running-operation-options"]?.["final-state-schema"] as string;
+      if (!Object.keys(modelerResponses).some((k) => k === "200")) {
+        modelerResponses["200"] = {
+          description: "Success",
+          content: {
+            "application/json": {
+              schema: {
+                $ref: finalStateSchema,
+              },
+            },
+          },
+        };
+      }
+    }
+
     // === Response ===
-    for (const { key: responseCode, value: response } of this.resolveDictionary(httpOperation.responses)) {
+    for (const { key: responseCode, value: response } of this.resolveDictionary(modelerResponses)) {
       const isErr = responseCode === "default" || response["x-ms-error-response"];
 
       const knownMediaTypes = this.filterMediaTypes(response.content);
@@ -2538,4 +2615,8 @@ export class ModelerFour {
       this.trackSchemaUsage(schema.elementType, schemaUsage);
     }
   }
+}
+
+function isParameter(param: unknown): param is OpenAPI.Parameter {
+  return Boolean((param as OpenAPI.Parameter).name) && Boolean((param as OpenAPI.Parameter).in);
 }

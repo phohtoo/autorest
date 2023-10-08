@@ -53,23 +53,19 @@ stages:
 
           - ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
               - template: ./templates/create-tryit-comment.yaml
-      - job: lintdocs
-        displayName: Lint docs
-        continueOnError: true
-        steps:
-          - script: |
-              sudo npm install -g markdown-link-check
-              find docs -name "*.md" -print0 | xargs -0  -n1 markdown-link-check -c ./markdown-link-check-config.json
-            displayName: Find
+      # - job: lintdocs
+      #   displayName: Lint docs
+      #   continueOnError: true
+      #   steps:
+      #     - script: |
+      #         sudo npm install -g markdown-link-check
+      #         find docs -name "*.md" -print0 | xargs -0  -n1 markdown-link-check -c ./markdown-link-check-config.json
+      #       displayName: Find
 
   - stage: regressiontests
     displayName: Regression Tests
     dependsOn: main
     jobs:
-      - template: ./templates/regression-tests.yaml
-        parameters:
-          name: node12
-          nodeVersion: 12.x
       - template: ./templates/regression-tests.yaml
         parameters:
           name: node14
@@ -78,6 +74,10 @@ stages:
         parameters:
           name: node16
           nodeVersion: 16.x
+      - template: ./templates/regression-tests.yaml
+        parameters:
+          name: node18
+          nodeVersion: 18.x
 
   - stage: smoketests
     displayName: Smoke Tests

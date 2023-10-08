@@ -1,6 +1,27 @@
 # Change Log - @autorest/extension-base
 
-This log was last generated on Tue, 15 Mar 2022 16:00:38 GMT and should not be manually modified.
+This log was last generated on Fri, 26 May 2023 14:12:36 GMT and should not be manually modified.
+
+## 3.5.2
+Fri, 26 May 2023 14:12:36 GMT
+
+### Patches
+
+- Bypass autocorrect to type: object in some cases
+
+## 3.5.1
+Wed, 07 Dec 2022 22:24:34 GMT
+
+### Patches
+
+- Update dependencies
+
+## 3.5.0
+Tue, 19 Jul 2022 15:09:55 GMT
+
+### Minor changes
+
+- Enable identity sourcemap for extensions
 
 ## 3.4.4
 Tue, 15 Mar 2022 16:00:38 GMT

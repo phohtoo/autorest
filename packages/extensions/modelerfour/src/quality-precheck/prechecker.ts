@@ -65,7 +65,7 @@ export class QualityPreChecker {
     this.interpret = new Interpretations(session);
   }
 
-  private resolve<T>(item: Refable<T>): Dereferenced<T> {
+  private resolve<T extends {} | undefined>(item: Refable<T>): Dereferenced<T> {
     return dereference(this.input, item);
   }
 
@@ -225,7 +225,11 @@ export class QualityPreChecker {
 
   fixUpObjectsWithoutType() {
     for (const { name, schema } of this.listSchemas()) {
-      if (<any>schema.type === "file" || <any>schema.format === "file" || <any>schema.format === "binary") {
+      if (
+        <any>schema.type === "file" ||
+        <any>schema.format === "file" ||
+        (<any>schema.format === "binary" && <any>schema.type !== "string")
+      ) {
         // handle inconsistency in file format handling.
         this.session.warning(
           `'The schema ${schema?.["x-ms-metadata"]?.name || name} with 'type: ${schema.type}', format: ${
@@ -270,17 +274,29 @@ export class QualityPreChecker {
           }
 
           if (schema.allOf || schema.anyOf || schema.oneOf) {
-            // if the model has properties, then we're going to assume they meant to say JsonType.object
-            // but we're going to warn them anyway.
-            this.session.warning(
-              `The schema '${
-                schema?.["x-ms-metadata"]?.name || name
-              }' with an undefined type and 'allOf'/'anyOf'/'oneOf' is a bit ambiguous. This has been auto-corrected to 'type:object'`,
-              ["PreCheck", "SchemaMissingType"],
-              schema,
-            );
-            schema.type = JsonType.Object;
-            break;
+            // The schema does not have properties or additionalProperties, but it does have allOf/anyOf/oneOf.
+            // The prior logic auto-corrected this to type: object, but that's not always appropriate.
+            // Check the child schemas and bypass the auto-correct if any are clearly not type: object.
+
+            // Return true if the schema has an explicit type that is not type: object.
+            const notTypeObject = (e: Refable<Schema>): boolean => {
+              const s = this.resolve(e).instance;
+              return !!s.type && s.type !== JsonType.Object;
+            };
+            let bypassAutoCorrect = schema.allOf && schema.allOf.some(notTypeObject);
+            bypassAutoCorrect ||= schema.anyOf && schema.anyOf.some(notTypeObject);
+            bypassAutoCorrect ||= schema.oneOf && schema.oneOf.some(notTypeObject);
+            if (!bypassAutoCorrect) {
+              this.session.warning(
+                `The schema '${
+                  schema?.["x-ms-metadata"]?.name || name
+                }' with an undefined type and 'allOf'/'anyOf'/'oneOf' is a bit ambiguous. This has been auto-corrected to 'type:object'`,
+                ["PreCheck", "SchemaMissingType"],
+                schema,
+              );
+              schema.type = JsonType.Object;
+              break;
+            }
           }
           break;
       }
