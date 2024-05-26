@@ -15,6 +15,7 @@
   },
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "prettier.prettierPath": "./packages/extensions/core/node_modules/prettier/index.cjs",
   "files.associations": {
     "rush.json": "jsonc",
     "command-line.json": "jsonc",
@@ -23,9 +24,13 @@
   "git.ignoreLimitWarning": true,
   "files.eol": "\n",
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
+    "source.fixAll.eslint": "explicit"
   },
   "[typespec]": {
     "editor.defaultFormatter": "Microsoft.typespec-vscode"
-  }
+  },
+  "[powershell]": {
+    "editor.defaultFormatter": "ms-vscode.powershell"
+  },
+  "typespec.tsp-server.path": "./packages/extensions/openapi-to-typespec/node_modules/@typespec/compiler"
 }

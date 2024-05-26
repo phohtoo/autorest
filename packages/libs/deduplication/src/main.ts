@@ -7,7 +7,7 @@ import { toSemver, maximum } from "@azure-tools/codegen";
 import { visit } from "@azure-tools/datastore";
 import { areSimilar } from "@azure-tools/object-comparison";
 import { YieldCPU } from "@azure-tools/tasks";
-import compareVersions from "compare-versions";
+import { compareVersions } from "compare-versions";
 import { cloneDeep } from "lodash";
 
 type componentType =
@@ -99,7 +99,10 @@ export class Deduplicator {
 
   // initially the target is the same as the original object
   private target: any;
-  constructor(originalFile: any, protected deduplicateInlineModels = false) {
+  constructor(
+    originalFile: any,
+    protected deduplicateInlineModels = false,
+  ) {
     this.target = cloneDeep(originalFile);
     this.target.info["x-ms-metadata"].deduplicated = true;
   }
@@ -189,8 +192,7 @@ export class Deduplicator {
         let filename = path[xMsMetadata].filename;
         let originalLocations = path[xMsMetadata].originalLocations;
         const pathFromMetadata = path[xMsMetadata].path;
-        let profiles = path[xMsMetadata].profiles;
-
+        let profiles = path[xMsMetadata].profiles ?? {};
         // extract path properties excluding metadata
         const { "x-ms-metadata": metadataCurrent, ...filteredPath } = path;
 
@@ -215,7 +217,7 @@ export class Deduplicator {
               originalLocations = originalLocations.concat(anotherPath[xMsMetadata].originalLocations);
               profiles = getMergedProfilesMetadata(
                 profiles,
-                anotherPath[xMsMetadata].profiles,
+                anotherPath[xMsMetadata].profiles ?? {},
                 path[xMsMetadata].path,
                 originalLocations,
               );

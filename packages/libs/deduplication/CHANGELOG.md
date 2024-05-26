@@ -1,6 +1,20 @@
 # Change Log - @azure-tools/deduplication
 
-This log was last generated on Wed, 07 Dec 2022 22:24:34 GMT and should not be manually modified.
+This log was last generated on Wed, 28 Feb 2024 18:02:21 GMT and should not be manually modified.
+
+## 3.2.1
+Wed, 28 Feb 2024 18:02:21 GMT
+
+### Patches
+
+- Fix: Crash when deduplication paths
+
+## 3.2.0
+Thu, 16 Nov 2023 16:00:04 GMT
+
+### Minor changes
+
+- Upgrade dependencies
 
 ## 3.1.6
 Wed, 07 Dec 2022 22:24:34 GMT
